@@ -2,6 +2,7 @@ import math
 import torch
 from einops import einops
 from abc import ABC, abstractmethod
+from pero_pretraining.models.helpers import create_vgg_encoder
 
 
 class TransformerEncoder(ABC, torch.nn.Module):
@@ -103,7 +104,13 @@ class VggTransformerEncoder(TransformerEncoder):
         self.num_conv_blocks = num_conv_blocks
         self.pretrained_vgg_layers = pretrained_vgg_layers
 
-        self.conv_layers = self.create_vgg()
+        self.conv_layers = create_vgg_encoder(in_channels=self.in_channels,
+                                              num_conv_blocks=self.num_conv_blocks,
+                                              base_channels=self.base_channels,
+                                              patch_size=self.patch_size,
+                                              pretrained_vgg_layers=self.pretrained_vgg_layers,
+                                              dropout=self.dropout,
+                                              num_conv_layers=[2, 2, 3, 2])
 
         conv_layers_vertical_subsampling = 2 ** self.num_conv_blocks
         aggregation_height = self.height // conv_layers_vertical_subsampling
@@ -123,66 +130,13 @@ class VggTransformerEncoder(TransformerEncoder):
 
         return x
 
-    def create_vgg(self):
-        layers = []
-        in_channels = self.in_channels
-        current_subsampling = [1, 1]
-
-        for i in range(self.num_conv_blocks):
-            out_channels = self.base_channels * (2 ** i)
-
-            block_subsampling = [1, 1]
-            if current_subsampling[0] < self.patch_size[0]:
-                block_subsampling[0] = 2
-                current_subsampling[0] *= 2
-
-            if current_subsampling[1] < self.patch_size[1]:
-                block_subsampling[1] = 2
-                current_subsampling[1] *= 2
-
-            num_conv_layers = 2 if i in (0, 1, self.num_conv_blocks - 1) else 3
-            batch_norm = i == self.num_conv_blocks - 1
-
-            layers += self.create_block(in_channels, out_channels, num_conv_layers, block_subsampling, batch_norm)
-            in_channels = out_channels
-
-        layers = torch.nn.Sequential(*layers)
-
-        if self.pretrained_vgg_layers > 0:
-            import torchvision
-            pretrained_vgg = torchvision.models.vgg16(pretrained=True)
-            pretrained_vgg = pretrained_vgg.features[:self.pretrained_vgg_layers]
-
-            layers.load_state_dict(pretrained_vgg.state_dict(), strict=False)
-
-        return layers
-
-    def create_block(self, in_channels, out_channels, num_conv_layers, subsampling, batch_norm=False):
-        block_layers = []
-
-        for _ in range(num_conv_layers):
-            block_layers.append(torch.nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1))
-            block_layers.append(torch.nn.ReLU())
-            in_channels = out_channels
-
-        additional_layers = [torch.nn.MaxPool2d(kernel_size=subsampling, stride=subsampling)]
-
-        if batch_norm:
-            additional_layers.append(torch.nn.BatchNorm2d(out_channels))
-
-        additional_layers.append(torch.nn.Dropout(self.dropout))
-
-        layers = torch.nn.Sequential(*block_layers, torch.nn.Sequential(*additional_layers))
-
-        return layers
-
 
 class PositionalEncoding(torch.nn.Module):
     """
     Source: https://pytorch.org/tutorials/beginner/transformer_tutorial.html
     """
     def __init__(self, d_model, max_len=5000):
-        super().__init__()
+        super(PositionalEncoding, self).__init__()
 
         pe = torch.zeros(max_len, d_model)
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
@@ -228,7 +182,6 @@ def main():
     print(f"Vision Transformer with mask: {vit_y_mask.shape}")
     print(f"VGG Transformer: {vggt_y.shape}")
     print(f"VGG Transformer with mask: {vggt_y_mask.shape}")
-
 
 
 if __name__ == '__main__':
