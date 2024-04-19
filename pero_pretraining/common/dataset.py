@@ -1,15 +1,15 @@
 import cv2
 import lmdb
 import logging
-import argparse
 import numpy as np
 
 
 class Dataset:
-    def __init__(self, lmdb_path, lines_path, augmentations=None):
+    def __init__(self, lmdb_path, lines_path, augmentations=None, pair_images=False):
         self.lmdb_path = lmdb_path
         self.lines_path = lines_path
         self.augmentations = augmentations
+        self.pair_images = pair_images
 
         self._logger = logging.getLogger(__name__)
 
@@ -68,6 +68,7 @@ class Dataset:
         image_id = self._image_ids[idx]
         image = self._load_image(image_id)
         labels = None
+        image2 = None
 
         if self.augmentations is not None:
             image = self.augmentations(image=image)
@@ -78,7 +79,19 @@ class Dataset:
             else:
                 self._logger.warning(f"Labels for image {image_id} not found.")
 
-        return {"image": image, "labels": labels}
+        if self.pair_images:
+            image2 = np.copy(image)
+            if self.augmentations is not None:
+                image2 = self.augmentations(image=image2)
+
+        item = {
+            "image": image,
+            "image2": image2,
+            "labels": labels,
+            "image_id": image_id
+        }
+
+        return item
 
 
 def parse_arguments():
@@ -113,4 +126,5 @@ def main():
 
 
 if __name__ == "__main__":
+    import argparse
     exit(main())
