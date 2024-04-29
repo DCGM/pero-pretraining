@@ -7,12 +7,13 @@ class Visualizer:
         self.subsampling_factor = subsampling_factor
 
     def visualize(self, images, images2=None, image_masks=None, image_masks2=None, shift_masks=None, shift_masks2=None,
-                  labels=None, num_labels=None, original_images=None, original_images2=None):
+                  labels=None, predicted_labels=None, num_labels=None, original_images=None, original_images2=None):
         image = self.visualize_column(images=images,
                                       image_masks=image_masks,
                                       shift_masks=shift_masks,
                                       labels=labels,
-                                      num_labels=num_labels)
+                                      predictions=predicted_labels,
+                                      num_labels=num_labels,)
 
         separator = np.ones((image.shape[0], 10, 3), dtype=np.uint8) * 255
 
@@ -21,6 +22,7 @@ class Visualizer:
                                            image_masks=image_masks2,
                                            shift_masks=shift_masks2,
                                            labels=labels,
+                                           predictions=predicted_labels,
                                            num_labels=num_labels)
 
             image = np.concatenate((image, separator, image2), axis=1)
