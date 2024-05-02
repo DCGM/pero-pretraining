@@ -7,7 +7,7 @@ class BatchOperator:
         self.device = device
         self.masking_prob = masking_prob
 
-    def prepare_batch(self, batch)
+    def prepare_batch(self, batch):
         images = self._prepare_batch_images(batch)
         labels = self._prepare_batch_labels(batch)
         mask = self._create_mask(batch)
