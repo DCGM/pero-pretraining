@@ -1,13 +1,6 @@
-import os
 import cv2
-import sys
-import time
-import json
 import torch
-import einops
 import argparse
-
-import numpy as np
 
 from functools import partial
 from safe_gpu.safe_gpu import GPUOwner
@@ -60,7 +53,7 @@ def init_model(device, backbone_definition, head_definition, path=None):
     model.to(device)
 
     if path is not None:
-        model.load_state_dict(torch.load(path, map_location=device))
+        model.load(path)
 
     return model
 
@@ -116,24 +109,26 @@ def report(iteration, dataset, result, scheduler):
           f"errors:{'|'.join(result[errors_key] for errors_key in errors_keys)} "
           f"lr:{scheduler.current_lr:.6e}")
 
-def visualize(visualizer, path):
-    image = visualizer.visualize()
-    cv2.imwrite(path, image)
 
-
-def view_step_processor(iteration, tester, scheduler):
+def test_model(iteration, tester, scheduler):
     result = tester.test()
     report(iteration, tester.dataset, result, scheduler)
 
 
 def save_model(model, path):
-    torch.save(model.state_dict(), path)
+    model.save(path)
+
+
+def visualize(visualizer, path):
+    image = visualizer.visualize()
+    cv2.imwrite(path, image)
 
 
 def view_step_handler(iteration, model, trn_tester, tst_tester, trn_visualizer, tst_visualizer, checkpoints_directory, visualizations_directory, scheduler):
-    view_step_processor(iteration, trn_tester, scheduler)
-    view_step_processor(iteration, tst_tester, scheduler)
     save_model(model, get_checkpoint_path(checkpoints_directory, iteration))
+
+    test_model(iteration, trn_tester, scheduler)
+    test_model(iteration, tst_tester, scheduler)
 
     visualize(trn_visualizer, get_visualization_path(visualizations_directory, iteration, "trn"))
     visualize(tst_visualizer, get_visualization_path(visualizations_directory, iteration, "tst"))
@@ -159,12 +154,7 @@ def main():
                                              tst_path=args.tst_path,
                                              lmdb_path=args.lmdb_path,
                                              batch_size=args.batch_size,
-                                             max_line_width=args.max_line_width,
-                                             augmentations=args.augmentations,
-                                             crop_width=args.crop_width,
-                                             random_crops=args.random_crops,
-                                             sample_similar_length=args.sample_similar_length,
-                                             random_position=args.random_position)
+                                             augmentations=args.augmentations)
     print("Datasets initialized")
 
     trn_visualizer, tst_visualizer = init_visualizers(model, trn_dataset, tst_dataset)

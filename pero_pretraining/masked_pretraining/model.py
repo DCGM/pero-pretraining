@@ -28,11 +28,11 @@ def init_head(head_definition):
 
 
 class MaskedTransformerEncoder(torch.nn.Module):
-    def __init__(self, net):
+    def __init__(self, net, loss=None):
         super(MaskedTransformerEncoder, self).__init__()
 
         self.net = net
-        self.loss = MaskedCrossEntropyLoss()
+        self.loss = MaskedCrossEntropyLoss() if loss is None else loss
 
     def forward(self, x, labels=None, mask=None):
         output = self.net(x, mask)
@@ -47,6 +47,12 @@ class MaskedTransformerEncoder(torch.nn.Module):
         }
 
         return result
+
+    def save(self, path):
+        torch.save(self.state_dict(), path)
+
+    def load(self, path):
+        self.load_state_dict(torch.load(path))
 
 
 class MaskedCrossEntropyLoss(torch.nn.Module):
