@@ -86,17 +86,17 @@ class AE(torch.nn.Module):
         self.encoder = encoder
         self.decoder = decoder
 
-    def forward(self, x):
+    def forward(self, images):
         result = {
             'tokens': None,
             'loss': None,
             'reconstructions': None
         }
 
-        tokens = self.encoder(x)
+        tokens = self.encoder(images)
         output = self.decoder(tokens)
 
-        loss = torch.nn.functional.mse_loss(x, output)
+        loss = torch.nn.functional.mse_loss(images, output)
 
         result['tokens'] = tokens
         result['loss'] = loss
@@ -106,19 +106,19 @@ class AE(torch.nn.Module):
 
 
 class VQVAE(torch.nn.Module):
-    def __init__(self, encoder, decoder, num_tokens, codebook_dim, commitment_cost=0.25, decay=0.99, reconstruction_loss='mse'):
+    def __init__(self, encoder, decoder, num_embeddings, embeddings_dim, commitment_cost=0.25, decay=0.99, reconstruction_loss='mse'):
         super(VQVAE, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
 
-        self.encoder_projection_layer = torch.nn.Conv2d(encoder.out_channels, codebook_dim, 1)
-        self.decoder_projection_layer = torch.nn.Conv2d(codebook_dim, decoder.base_channels, 1)
+        self.encoder_projection_layer = torch.nn.Conv2d(encoder.out_channels, embeddings_dim, 1)
+        self.decoder_projection_layer = torch.nn.Conv2d(embeddings_dim, decoder.base_channels, 1)
 
-        self.num_tokens = num_tokens
-        self.codebook_dim = codebook_dim
+        self.num_embeddings = num_embeddings
+        self.embeddings_dim = embeddings_dim
         self.reconstruction_loss = reconstruction_loss
 
-        self.vq = VectorQuantizer(self.num_tokens, self.codebook_dim, commitment_cost, decay)
+        self.vq = VectorQuantizer(self.num_embeddings, self.embeddings_dim, commitment_cost, decay)
 
     def calculate_loss(self, images: torch.Tensor, reconstructions: torch.Tensor, features: torch.Tensor, tokens: torch.Tensor):
         if self.reconstruction_loss.lower() in ('l2', 'mse'):
@@ -162,25 +162,25 @@ class VQVAE(torch.nn.Module):
         result['labels'] = labels
         result['loss'] = loss
         result['reconstructions'] = reconstructions
-        result['counts'] = torch.bincount(labels, minlength=self.num_tokens)
+        result['counts'] = torch.bincount(labels, minlength=self.num_embeddings)
 
         return result
 
 
 class VectorQuantizer(torch.nn.Module):
-    def __init__(self, num_embeddings, embedding_dim, commitment_cost, decay, epsilon=1e-5):
+    def __init__(self, num_embeddings, embeddings_dim, commitment_cost, decay, epsilon=1e-5):
         super(VectorQuantizer, self).__init__()
 
-        self.embedding_dim = embedding_dim
+        self.embeddings_dim = embeddings_dim
         self.num_embeddings = num_embeddings
 
-        self.embedding = torch.nn.Embedding(self.num_embeddings, self.embedding_dim)
+        self.embedding = torch.nn.Embedding(self.num_embeddings, self.embeddings_dim)
 
         if decay > 0.0:
             self.embedding.weight.data.normal_()
 
             self.register_buffer('ema_cluster_size', torch.zeros(num_embeddings))
-            self.ema_w = torch.nn.Parameter(torch.Tensor(num_embeddings, self.embedding_dim))
+            self.ema_w = torch.nn.Parameter(torch.Tensor(num_embeddings, self.embeddings_dim))
             self.ema_w.data.normal_()
 
         else:
@@ -206,7 +206,7 @@ class VectorQuantizer(torch.nn.Module):
         input_shape = inputs.shape
 
         # Flatten input
-        flat_input = inputs.view(-1, self.embedding_dim)
+        flat_input = inputs.view(-1, self.embeddings_dim)
 
         # Calculate distances
         distances = (torch.sum(flat_input ** 2, dim=1, keepdim=True)
@@ -252,7 +252,7 @@ def main():
     decoder = VGGDecoder()
 
     ae = AE(encoder, decoder)
-    vqvae = VQVAE(encoder, decoder, num_tokens=1024, codebook_dim=512)
+    vqvae = VQVAE(encoder, decoder, num_embeddings=1024, embeddings_dim=512)
 
     y_ae = ae(x)
     y_vqvae = vqvae(x)
