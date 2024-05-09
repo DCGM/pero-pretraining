@@ -19,8 +19,8 @@ from pero_pretraining.joint_embedding_pretraining.visualizer import JointEmbeddi
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--trn-labels-file", help="Path to the training labels file.")
-    parser.add_argument("--tst-labels-file", help="Path to the test labels file.")
+    parser.add_argument("--trn-images-file", help="Path to the training images file.")
+    parser.add_argument("--tst-images-file", help="Path to the test images file.")
     parser.add_argument("--lmdb-path", help="Path to the LMDB.")
     parser.add_argument("--augmentations", help="One of the predefined augmentations.", required=False, default=None)
 
@@ -86,7 +86,7 @@ def init_visualizers(model, trn_dataloader, tst_dataloader):
 
 
 def init_testers(model, trn_dataloader, tst_dataloader):
-    trn_tester = Tester(model, trn_dataloader)
+    trn_tester = Tester(model, trn_dataloader, max_lines=1000)
     tst_tester = Tester(model, tst_dataloader)
 
     return trn_tester, tst_tester
@@ -103,7 +103,8 @@ def init_training(model, dataset, trn_tester, tst_tester, trn_visualizer, tst_vi
                                    trn_visualizer=trn_visualizer,
                                    tst_visualizer=tst_visualizer,
                                    checkpoints_directory=checkpoints_directory,
-                                   visualizations_directory=visualizations_directory)
+                                   visualizations_directory=visualizations_directory,
+                                   scheduler=scheduler)
 
     return trainer
 

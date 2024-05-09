@@ -2,18 +2,17 @@ import torch
 import numpy as np
 
 from pero_pretraining.common.visualizer import Visualizer
-from pero_pretraining.masked_pretraining.batch_operator import BatchOperator
+from pero_pretraining.joint_embedding_pretraining.batch_operator import BatchOperator
 
 
 class JointEmbeddingVisualizer(BatchOperator):
-    def __init__(self, model, dataloader, num_labels=4096):
+    def __init__(self, model, dataloader):
         super(JointEmbeddingVisualizer, self).__init__(model.device)
-
-        self._visualizer = Visualizer()
 
         self.model = model
         self.dataloader = dataloader
-        self.num_labels = num_labels
+
+        self._visualizer = Visualizer()
 
     def visualize(self):
         batch = next(iter(self.dataloader))
@@ -27,7 +26,11 @@ class JointEmbeddingVisualizer(BatchOperator):
                                            shift_masks2=batch['shift_masks2'])
 
         bottom_padding = image.shape[0] // batch['images'].shape[0] - batch['images'].shape[2]
-        similarity_image = self._visualize_similarity(batch['images'], batch['images2'], predictions['output1'], predictions['output2'], bottom_padding=bottom_padding)
+        similarity_image = self._visualize_similarity(batch['images'],
+                                                      batch['images2'],
+                                                      predictions['output1'],
+                                                      predictions['output2'],
+                                                      bottom_padding=bottom_padding)
 
         image = np.concatenate([image, similarity_image], axis=1)
 

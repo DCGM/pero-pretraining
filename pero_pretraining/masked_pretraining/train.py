@@ -34,7 +34,6 @@ def parse_arguments():
 
     parser.add_argument("--backbone", help="Backbone definition.", type=str, default="{}")
     parser.add_argument("--head", help="Head definition.", type=str, default="{}")
-    parser.add_argument("--clusters", help="Number of clusters.", type=int, default=4096)
 
     parser.add_argument("--view-step", help="Number of iterations between testing.", type=int)
     parser.add_argument("--checkpoints", help="Path to a directory where checkpoints are saved.", default=None)
@@ -78,7 +77,7 @@ def init_visualizers(model, trn_dataloader, tst_dataloader):
 
 
 def init_testers(model, trn_dataloader, tst_dataloader):
-    trn_tester = Tester(model, trn_dataloader)
+    trn_tester = Tester(model, trn_dataloader, max_lines=1000)
     tst_tester = Tester(model, tst_dataloader)
 
     return trn_tester, tst_tester
@@ -95,7 +94,8 @@ def init_training(model, dataset, trn_tester, tst_tester, trn_visualizer, tst_vi
                                    trn_visualizer=trn_visualizer, 
                                    tst_visualizer=tst_visualizer, 
                                    checkpoints_directory=checkpoints_directory, 
-                                   visualizations_directory=visualizations_directory)
+                                   visualizations_directory=visualizations_directory,
+                                   scheduler=scheduler)
 
     return trainer
 

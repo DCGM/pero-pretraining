@@ -5,14 +5,14 @@ from pero_pretraining.masked_pretraining.batch_operator import BatchOperator
 
 
 class MaskedVisualizer(BatchOperator):
-    def __init__(self, model, dataloader, num_labels=4096, masking_prob=0.2):
+    def __init__(self, model, dataloader, masking_prob=0.2):
         super(MaskedVisualizer, self).__init__(model.device, masking_prob)
-
-        self._visualizer = Visualizer()
 
         self.model = model
         self.dataloader = dataloader
-        self.num_labels = num_labels
+
+        self._num_labels = self.model.net[-1].linear.out_features
+        self._visualizer = Visualizer()
 
     def visualize(self):
         batch = next(iter(self.dataloader))
@@ -22,7 +22,7 @@ class MaskedVisualizer(BatchOperator):
                                             image_masks=batch['image_masks'],
                                             labels=batch['labels'],
                                             predicted_labels=predictions['output'],
-                                            num_labels=self.num_labels)
+                                            num_labels=self._num_labels)
 
         return output
 
