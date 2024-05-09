@@ -1,7 +1,7 @@
 # Self-supervised Pre-training of Text Recognizers
 
 This repository contains the code for the paper [Self-supervised Pre-training of Text Recognizers](https://arxiv.org/abs/2405.00420) by [Martin Kišš](https://www.fit.vut.cz/person/ikiss) and [Michal Hradiš](https://www.fit.vut.cz/person/ihradis) for [2024 International Conference on Document Analysis and Recognition](https://icdar2024.net/) (ICDAR 2024).
-In this repository you can find implementations of investigated methods and models.
+In this repository you can find implementations of investigated methods, models, and visualizations.
 
 [[arxiv](https://arxiv.org/abs/2405.00420)]
 
