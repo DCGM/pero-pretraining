@@ -41,6 +41,10 @@ def parse_arguments():
 
 
 def init_model(device, model_definition, path=None):
+    if type(model_definition) == str:
+        import json
+        model_definition = json.loads(model_definition)
+
     model = init_autoencoder_model(model_definition)
     model.to(device)
 
