@@ -1,3 +1,5 @@
+
+
 def init_model(model_definition, checkpoint_path, device):
     if type(model_definition) == str:
         import json
