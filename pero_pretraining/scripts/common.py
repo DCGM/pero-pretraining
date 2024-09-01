@@ -4,6 +4,8 @@ import numpy as np
 
 from pero_pretraining.models.helpers import create_pero_vgg_encoder
 from pero_pretraining.autoencoders.model import init_model as init_autoencoder_model
+from pero_pretraining.common.dataset import Dataset
+from pero_pretraining.common.dataloader import create_dataloader, BatchCreator
 
 
 def init_model(model_definition, checkpoint_path, device):

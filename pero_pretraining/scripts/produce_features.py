@@ -15,6 +15,7 @@ def parse_arguments():
     parser.add_argument("--lines-path", help="Path to the file with lines.")
     parser.add_argument("--lmdb-path", help="Path to the LMDB.")
     parser.add_argument("--batch-size", help="Batch size.", default=32, required=False, type=int)
+    parser.add_argument("--output-type", help="Type of the output.", default="numpy", choices=["numpy", "pickle"])
     parser.add_argument("--output", help="Path to the output file.")
 
     args = parser.parse_args()
@@ -61,8 +62,12 @@ def main():
     features = compute_features(model, dataset)
     print(f"Features computed ({features.shape})")
 
-    save_pickle(features, args.output)
-    print(f"Features saved to {args.output}")
+    if args.output_type == "numpy":
+        save_numpy(features, args.output)
+    else:
+        save_pickle(features, args.output)
+
+    print(f"Features saved to {args.output} ({args.output_type})")
 
     return 0
 
