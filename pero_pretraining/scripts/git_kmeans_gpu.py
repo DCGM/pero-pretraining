@@ -33,7 +33,11 @@ def KMeans(x, K=10, Niter=10, c=None, verbose=True):
         
         change = (last_assignment != cl).sum().item() if last_assignment is not None else 0
         last_assignment = cl
-        print(i, change, D_ij.min(dim=1).mean().item())
+        # compute min, median, mean, and max number of points per cluster
+        cluter_sizes = torch.bincount(cl)
+        print(i, change, D_ij.min(dim=1).mean().item(),
+              f"min: {cluter_sizes.min().item()}, median: {cluter_sizes.median().item()}, "
+              f"mean: {cluter_sizes.mean().item()}, max: {cluter_sizes.max().item()}")
 
         # M step: update the centroids to the normalized cluster average: ------
         # Compute the sum of points per cluster:
