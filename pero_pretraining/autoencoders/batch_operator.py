@@ -13,6 +13,7 @@ class BatchOperator:
     def _prepare_batch_images(self, batch, key="images"):
         images = batch[key] / 255.
         images = torch.from_numpy(images).float().to(self.device)
+        images = images.permute(0, 3, 1, 2)
 
         return images
 
