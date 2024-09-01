@@ -5,7 +5,7 @@ import torch
 from pykeops.torch import LazyTensor
 
 use_cuda = torch.cuda.is_available()
-dtype = torch.float32 if use_cuda else torch.float64
+dtype = torch.float32 
 device_id = "cuda:0" if use_cuda else "cpu"
 
 
@@ -25,10 +25,15 @@ def KMeans(x, K=10, Niter=10, c=None, verbose=True):
     # - x  is the (N, D) point cloud,
     # - cl is the (N,) vector of class labels
     # - c  is the (K, D) cloud of cluster centroids
+    last_assignment = None
     for i in range(Niter):
         # E step: assign points to the closest cluster -------------------------
         D_ij = ((x_i - c_j) ** 2).sum(-1)  # (N, K) symbolic squared distances
         cl = D_ij.argmin(dim=1).long().view(-1)  # Points -> Nearest cluster
+        
+        change = (last_assignment != cl).sum().item() if last_assignment is not None else 0
+        last_assignment = cl
+        print(i, change, D_ij.min(dim=1).mean().item())
 
         # M step: update the centroids to the normalized cluster average: ------
         # Compute the sum of points per cluster:
@@ -57,7 +62,7 @@ def KMeans(x, K=10, Niter=10, c=None, verbose=True):
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", help="Path to a file with the pickled features")
-    parser.add_argument("--k", help="Number of clusters ('K'-means).", default=4096, required=False, type=int)
+    parser.add_argument("--k", help="Number of clusters ('K'-means).", default=4096,  type=int)
     parser.add_argument("--data-size", help="The number of samples to use. If None, all samples are used.", default=None, required=False, type=int)
     parser.add_argument("--iters", help="Number of iterations over dataset .", default=100, required=False, type=int)
     parser.add_argument("--output", help="Path to the output file.")
@@ -77,18 +82,21 @@ def main():
         vectors = torch.randn(N, D, dtype=dtype, device=device_id)
     else:
         vectors = np.load(args.dataset)
-    print(f"Loaded '{args.dataset}' ({len(vectors)})")
+    print(f"DATA '{args.dataset}' ({len(vectors)})")
 
-    np.random.shuffle(vectors)
-    print(f"Shuffled")
+    #np.random.shuffle(vectors)
+    print(f"SHUFFLED")
 
     vectors = torch.tensor(vectors, dtype=dtype, device=device_id)
 
-    centroids = KMeans(vectors, K=args.k, Niter=args.epochs, verbose=True)
+    cl, c = KMeans(vectors, K=args.k, Niter=args.iters, verbose=True)
 
-    centroids = centroids.cpu().numpy()
+    print(cl.shape)
+    print(c.shape)
 
-    np.save(args.output, centroids)
+    c = c.cpu().numpy()
+
+    np.save(args.output, c)
 
     return 0
 
