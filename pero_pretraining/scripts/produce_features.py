@@ -32,7 +32,8 @@ def compute_features(model, dataset):
         for batch in dataset:
             images = batch_operator.prepare_batch(batch)
 
-            features = model.encoder(images)
+            features = model(images)
+            print(features.shape)
 
             if len(features.shape) == 4:
                 features = features.squeeze(2)
