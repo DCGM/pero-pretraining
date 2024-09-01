@@ -4,7 +4,7 @@ import numpy as np
 
 from safe_gpu.safe_gpu import GPUOwner
 
-from pero_pretraining.scripts.common import init_model, init_dataset, save_pickle
+from pero_pretraining.scripts.common import init_model, init_dataset, save_pickle, save_numpy
 from pero_pretraining.autoencoders.batch_operator import BatchOperator
 
 
@@ -52,7 +52,7 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = init_model(args.model, args.checkpoint_path, device)
+    model = init_model(args.model_definition, args.checkpoint_path, device)
     print("Model loaded")
 
     dataset = init_dataset(args.lmdb_path, args.lines_path, args.batch_size)

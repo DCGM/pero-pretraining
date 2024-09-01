@@ -92,3 +92,75 @@ def create_decoder_block(in_channels, out_channels, num_conv_layers, dropout, up
     layers = torch.nn.Sequential(*block_layers)
 
     return layers
+
+
+def create_pero_vgg_encoder():
+    from torch.nn import Conv2d, ReLU, MaxPool2d, Dropout, LeakyReLU, BatchNorm2d
+
+    class EncoderLayers(torch.nn.Module):
+        def __init__(self, layers):
+            super(EncoderLayers, self).__init__()
+            self.blocks_2d = layers
+
+        def forward(self, x):
+            return self.blocks_2d(x)
+
+    class EncoderFrontend(torch.nn.Module):
+        def __init__(self, blocks_2d, aggregation_conv):
+            super(EncoderFrontend, self).__init__()
+            self.blocks_2d = blocks_2d
+            self.aggregation_conv = aggregation_conv
+
+        def forward(self, x):
+            x = self.blocks_2d(x)
+            x = self.aggregation_conv(x)
+            return x
+
+    class Encoder(torch.nn.Module):
+        def __init__(self, encoder_frontend):
+            super(Encoder, self).__init__()
+            self.encoder_frontend = encoder_frontend
+
+        def forward(self, x):
+            return self.encoder_frontend(x)
+
+    layers = torch.nn.Sequential(*[
+        Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+        ReLU(inplace=True),
+        Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+        ReLU(inplace=True),
+        MaxPool2d(kernel_size=(2, 2), stride=(2, 2), padding=0, dilation=1, ceil_mode=False),
+        Dropout(p=0.0, inplace=True),
+        Conv2d(64, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+        ReLU(inplace=True),
+        Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+        ReLU(inplace=True),
+        MaxPool2d(kernel_size=(2, 2), stride=(2, 2), padding=0, dilation=1, ceil_mode=False),
+        Dropout(p=0.0, inplace=True),
+        Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+        ReLU(inplace=True),
+        Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+        ReLU(inplace=True),
+        Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+        ReLU(inplace=True),
+        MaxPool2d(kernel_size=(2, 2), stride=(2, 2), padding=0, dilation=1, ceil_mode=False),
+        Dropout(p=0.0, inplace=True),
+        torch.nn.Sequential(*[
+            Conv2d(256, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            LeakyReLU(negative_slope=0.01),
+            Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            LeakyReLU(negative_slope=0.01),
+            MaxPool2d(kernel_size=(2, 1), stride=(2, 1), padding=0, dilation=1, ceil_mode=False)]),
+        BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
+        Dropout(p=0.0, inplace=True)])
+
+    aggregation_conv = torch.nn.Sequential(*[
+        Conv2d(512, 768, kernel_size=(3, 1), stride=(1, 1)),
+        LeakyReLU(negative_slope=0.01)])
+
+    blocks_2d = EncoderLayers(layers)
+    encoder_frontend = EncoderFrontend(blocks_2d, aggregation_conv)
+    encoder = Encoder(encoder_frontend)
+
+    return encoder
+

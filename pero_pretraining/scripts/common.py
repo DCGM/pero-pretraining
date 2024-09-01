@@ -1,10 +1,21 @@
+import torch
+import pickle
+import numpy as np
+
+from pero_pretraining.models.helpers import create_pero_vgg_encoder
+from pero_pretraining.autoencoders.model import init_model as init_autoencoder_model
+
+
 def init_model(model_definition, checkpoint_path, device):
-    if type(model_definition) == str:
+    if model_definition == "pero_vgg":
+        model = create_pero_vgg_encoder()
+
+    elif type(model_definition) == str:
         import json
         model_definition = json.loads(model_definition)
+        model = init_autoencoder_model(model_definition)
 
-    model = init_autoencoder_model(model_definition)
-    model.load_state_dict(torch.load(checkpoint_path))
+    model.load_state_dict(torch.load(checkpoint_path), strict=False)
     model = model.eval()
     model = model.to(device)
 
@@ -28,6 +39,11 @@ def load_pickle(path):
 def save_pickle(model, path):
     with open(path, "wb") as file:
         pickle.dump(model, file)
+
+
+def save_numpy(data, path):
+    with open(path, "wb") as f:
+        np.save(f, data)
 
 
 def save_labels(data, path):
