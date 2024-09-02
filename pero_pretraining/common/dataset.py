@@ -5,11 +5,13 @@ import numpy as np
 
 
 class Dataset:
-    def __init__(self, lmdb_path, lines_path, augmentations=None, pair_images=False):
+    def __init__(self, lmdb_path, lines_path, augmentations=None, pair_images=False, max_width=2048, label_step=8):
         self.lmdb_path = lmdb_path
         self.lines_path = lines_path
         self.augmentations = augmentations
         self.pair_images = pair_images
+        self.max_width = max_width
+        self.label_step = label_step
 
         self._logger = logging.getLogger(__name__)
 
@@ -66,18 +68,19 @@ class Dataset:
 
     def __getitem__(self, idx):
         image_id = self._image_ids[idx]
-        image = self._load_image(image_id)
+        image = self._load_image(image_id)[:, :self.max_width]
         labels = None
         image2 = None
 
-        if self.augmentations is not None:
-            image = self.augmentations(image=image)
-
         if self._has_labels:
             if image_id in self._labels:
-                labels = self._labels[image_id]
+                labels = self._labels[image_id][:(self.max_width // self.label_step)]
             else:
                 self._logger.warning(f"Labels for image {image_id} not found.")
+
+
+        if self.augmentations is not None:
+            image = self.augmentations(image=image)
 
         if self.pair_images:
             image2 = np.copy(image)

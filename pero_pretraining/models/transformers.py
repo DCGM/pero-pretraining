@@ -54,9 +54,9 @@ class TransformerEncoder(ABC, torch.nn.Module):
 
     def encode(self, x):
         x = self._conv(x)
-        print(1, x.shape)
+        #print(1, x.shape)
         x = self._transformer(x)
-        print(2, x.shape)
+        #print(2, x.shape)
 
         return x
 

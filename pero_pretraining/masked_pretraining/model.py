@@ -19,9 +19,11 @@ def init_backbone(backbone_definition):
 
 def init_head(head_definition):
     head_type = head_definition.get("type", "linear")
+    if "type" in head_definition:
+        del head_definition["type"]
 
     if head_type == "linear":
-        head = LinearHead()
+        head = LinearHead(**head_definition)
     else:
         raise ValueError(f"Unknown head type: {head_type}")
 
@@ -36,7 +38,7 @@ class MaskedTransformerEncoder(torch.nn.Module):
         self.loss = MaskedCrossEntropyLoss() if loss is None else loss
 
     def forward(self, x, labels=None, mask=None):
-        output = self.net(x)
+        output = self.net(x, mask)
 
         loss = None
         if mask is not None and labels is not None:

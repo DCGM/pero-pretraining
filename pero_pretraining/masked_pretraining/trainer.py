@@ -25,22 +25,21 @@ class Trainer(BatchOperator):
                 batch = next(dataloader_iterator)            
 
             self.scheduler.update_learning_rate(iteration)
-
             self.train_step(batch)
 
             if self.device.type == "cuda":
                 torch.cuda.empty_cache()
             
             if self.on_view_step is not None and iteration > 0 and iteration % view_step == 0:
-                self.on_view_step(iteration)
+                self.on_view_step(iteration, self.model)
 
     def train_step(self, batch):
         self.optimizer.zero_grad()
         
         images, labels, mask = self.prepare_batch(batch)
-        output = self.model.forward(images, labels, mask)
-
-        loss = output['loss']
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            output = self.model.forward(images, labels, mask)
+            loss = output['loss']
         loss.backward()
 
         self.optimizer.step()

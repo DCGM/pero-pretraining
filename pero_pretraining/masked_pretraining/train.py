@@ -80,8 +80,8 @@ def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations):
 
     batch_creator = BatchCreator()
 
-    trn_dataloader = create_dataloader(trn_dataset, batch_creator=batch_creator, batch_size=batch_size, shuffle=True)
-    tst_dataloader = create_dataloader(tst_dataset, batch_creator=batch_creator, batch_size=batch_size, shuffle=False)
+    trn_dataloader = create_dataloader(trn_dataset, batch_creator=batch_creator, batch_size=batch_size, shuffle=True, num_workers=4)
+    tst_dataloader = create_dataloader(tst_dataset, batch_creator=batch_creator, batch_size=batch_size, shuffle=False, num_workers=4)
 
     return trn_dataloader, tst_dataloader
 
@@ -94,8 +94,8 @@ def init_visualizers(model, trn_dataloader, tst_dataloader, device):
 
 
 def init_testers(model, trn_dataloader, tst_dataloader, device):
-    trn_tester = Tester(model, trn_dataloader, max_lines=1000, device=device)
-    tst_tester = Tester(model, tst_dataloader, device=device)
+    trn_tester = Tester(model, trn_dataloader, max_lines=500, device=device)
+    tst_tester = Tester(model, tst_dataloader, max_lines=500, device=device)
 
     return trn_tester, tst_tester
 
@@ -120,16 +120,16 @@ def init_training(model, dataset, trn_tester, tst_tester, trn_visualizer, tst_vi
 def report(iteration, dataset, result, scheduler):
     errors_keys = sorted([key for key in result.keys() if key.startswith('errors_')], key=lambda key: int(key.split('_')[-1]))
 
-    print(f"TEST {dataset.name()} "
+    print(f"TEST {dataset}" #.name()} "
           f"iteration:{iteration} "
           f"loss:{result['loss']:.6f} "
-          f"errors:{'|'.join(result[errors_key] for errors_key in errors_keys)} "
+          f"errors:{'|'.join(str(result[errors_key]) for errors_key in errors_keys)} "
           f"lr:{scheduler.current_lr:.6e}")
 
 
 def test_model(iteration, tester, scheduler):
     result = tester.test()
-    report(iteration, tester.dataset, result, scheduler)
+    report(iteration, 'dataset', result, scheduler)
 
 
 def save_model(model, path):
@@ -147,8 +147,8 @@ def view_step_handler(iteration, model, trn_tester, tst_tester, trn_visualizer, 
     test_model(iteration, trn_tester, scheduler)
     test_model(iteration, tst_tester, scheduler)
 
-    visualize(trn_visualizer, get_visualization_path(visualizations_directory, iteration, "trn"))
-    visualize(tst_visualizer, get_visualization_path(visualizations_directory, iteration, "tst"))
+    #visualize(trn_visualizer, get_visualization_path(visualizations_directory, iteration, "trn"))
+    #visualize(tst_visualizer, get_visualization_path(visualizations_directory, iteration, "tst"))
 
 
 def main():
@@ -174,7 +174,7 @@ def main():
                                              augmentations=args.augmentations)
     print("Datasets initialized")
 
-    trn_visualizer, tst_visualizer = init_visualizers(model, trn_dataset, tst_dataset, device=device)
+    trn_visualizer, tst_visualizer = None, None #init_visualizers(model, trn_dataset, tst_dataset, device=device)
     print("Visualizers initialized")
 
     trn_tester, tst_tester = init_testers(model, trn_dataset, tst_dataset, device=device)
