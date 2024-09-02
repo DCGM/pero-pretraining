@@ -3,8 +3,8 @@ import argparse
 
 from safe_gpu.safe_gpu import GPUOwner
 
-
-from pero_pretraining.scripts.common import init_model, init_dataset, load_pickle as init_kmeans_model, save_labels
+import numpy as np
+from pero_pretraining.scripts.common import init_model, init_dataset, load_pickle
 from pero_pretraining.autoencoders.batch_operator import BatchOperator
 
 
@@ -32,10 +32,11 @@ def compute_features(model, dataset, kmeans_model):
         for batch in dataset:
             images = batch_operator.prepare_batch(batch)
 
-            features = model.encoder(images)
+            features = model(images)
 
             if len(features.shape) == 4:
                 features = features.squeeze(2)
+            print(features.shape, kmeans_model.shape)
 
             features = features.permute(0, 2, 1)
             features = features.cpu().numpy()
@@ -54,10 +55,10 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = init_model(args.model, args.checkpoint_path, device)
+    model = init_model(args.model_definition, args.checkpoint_path, device)
     print("Model loaded")
 
-    kmeans_model = init_kmeans_model(args.kmeans_path)
+    kmeans_model = np.load(args.kmeans_path)
     print("K-Means Model loaded")
 
     dataset = init_dataset(args.lmdb_path, args.lines_path, args.batch_size)
