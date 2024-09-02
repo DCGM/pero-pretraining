@@ -35,7 +35,7 @@ class MaskedTransformerEncoder(torch.nn.Module):
         self.loss = MaskedCrossEntropyLoss() if loss is None else loss
 
     def forward(self, x, labels=None, mask=None):
-        output = self.net(x, mask)
+        output = self.net(x)
 
         loss = None
         if mask is not None and labels is not None:

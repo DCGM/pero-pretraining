@@ -7,8 +7,8 @@ from pero_pretraining.masked_pretraining.batch_operator import BatchOperator
 
 
 class Tester(BatchOperator):
-    def __init__(self, model, dataloader, masking_prob=0.2, max_lines=None, measured_errors=(1, 3, 10)):
-        super(Tester, self).__init__(model.device, masking_prob)
+    def __init__(self, model, dataloader, device, masking_prob=0.2, max_lines=None, measured_errors=(1, 3, 10)):
+        super(Tester, self).__init__(device, masking_prob)
 
         self.model = model
         self.dataloader = dataloader

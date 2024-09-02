@@ -3,8 +3,8 @@ from pero_pretraining.masked_pretraining.batch_operator import BatchOperator
 
 
 class Trainer(BatchOperator):
-    def __init__(self, model, dataloader, optimizer, scheduler, masking_prob=0.2):
-        super(Trainer, self).__init__(model.device, masking_prob)
+    def __init__(self, model, dataloader, optimizer, scheduler, device, masking_prob=0.2):
+        super(Trainer, self).__init__(device, masking_prob)
 
         self.model = model
         self.dataloader = dataloader

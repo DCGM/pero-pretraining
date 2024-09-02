@@ -5,8 +5,8 @@ from pero_pretraining.masked_pretraining.batch_operator import BatchOperator
 
 
 class MaskedVisualizer(BatchOperator):
-    def __init__(self, model, dataloader, masking_prob=0.2):
-        super(MaskedVisualizer, self).__init__(model.device, masking_prob)
+    def __init__(self, model, dataloader, device,  masking_prob=0.2):
+        super(MaskedVisualizer, self).__init__(device, masking_prob)
 
         self.model = model
         self.dataloader = dataloader

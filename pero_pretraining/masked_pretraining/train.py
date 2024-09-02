@@ -1,6 +1,7 @@
 import cv2
 import torch
 import argparse
+import json
 
 from functools import partial
 from safe_gpu.safe_gpu import GPUOwner
@@ -32,8 +33,8 @@ def parse_arguments():
     parser.add_argument("--max-line-width", help="Max line width.", type=int, default=2048, required=False)
     parser.add_argument("--warmup-iterations", help="Number of warmup iterations.", type=int, default=10000, required=False)
 
-    parser.add_argument("--backbone", help="Backbone definition.", type=str, default="{}")
-    parser.add_argument("--head", help="Head definition.", type=str, default="{}")
+    parser.add_argument("--backbone", help="Backbone definition.", type=json.loads, default="{}")
+    parser.add_argument("--head", help="Head definition.", type=json.loads, default="{}")
 
     parser.add_argument("--view-step", help="Number of iterations between testing.", type=int, default=500)
     parser.add_argument("--checkpoints", help="Path to a directory where checkpoints are saved.", default=None)
@@ -69,25 +70,25 @@ def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations):
     return trn_dataloader, tst_dataloader
 
 
-def init_visualizers(model, trn_dataloader, tst_dataloader):
-    trn_visualizer = Visualizer(model, trn_dataloader)
-    tst_visualizer = Visualizer(model, tst_dataloader)
+def init_visualizers(model, trn_dataloader, tst_dataloader, device):
+    trn_visualizer = Visualizer(model, trn_dataloader, device=device)
+    tst_visualizer = Visualizer(model, tst_dataloader, device=device)
 
     return trn_visualizer, tst_visualizer
 
 
-def init_testers(model, trn_dataloader, tst_dataloader):
-    trn_tester = Tester(model, trn_dataloader, max_lines=1000)
-    tst_tester = Tester(model, tst_dataloader)
+def init_testers(model, trn_dataloader, tst_dataloader, device):
+    trn_tester = Tester(model, trn_dataloader, max_lines=1000, device=device)
+    tst_tester = Tester(model, tst_dataloader, device=device)
 
     return trn_tester, tst_tester
 
 
-def init_training(model, dataset, trn_tester, tst_tester, trn_visualizer, tst_visualizer, learning_rate, warmup_iterations, checkpoints_directory, visualizations_directory):
+def init_training(model, dataset, trn_tester, tst_tester, trn_visualizer, tst_visualizer, learning_rate, warmup_iterations, checkpoints_directory, visualizations_directory, device):
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = WarmupSchleduler(optimizer, learning_rate, warmup_iterations, 1)
 
-    trainer = Trainer(model, dataset, optimizer, scheduler, masking_prob=0.2)
+    trainer = Trainer(model, dataset, optimizer, scheduler, device=device, masking_prob=0.2)
     trainer.on_view_step = partial(view_step_handler, 
                                    trn_tester=trn_tester, 
                                    tst_tester=tst_tester, 
@@ -150,17 +151,17 @@ def main():
                        path=checkpoint_path)
     print(model)
 
-    trn_dataset, tst_dataset = init_datasets(trn_path=args.trn_path,
-                                             tst_path=args.tst_path,
+    trn_dataset, tst_dataset = init_datasets(trn_path=args.trn_labels_file,
+                                             tst_path=args.tst_labels_file,
                                              lmdb_path=args.lmdb_path,
                                              batch_size=args.batch_size,
                                              augmentations=args.augmentations)
     print("Datasets initialized")
 
-    trn_visualizer, tst_visualizer = init_visualizers(model, trn_dataset, tst_dataset)
+    trn_visualizer, tst_visualizer = init_visualizers(model, trn_dataset, tst_dataset, device=device)
     print("Visualizers initialized")
 
-    trn_tester, tst_tester = init_testers(model, trn_dataset, tst_dataset)
+    trn_tester, tst_tester = init_testers(model, trn_dataset, tst_dataset, device=device)
     print("Testers initialized")
 
     trainer = init_training(model=model,
@@ -172,7 +173,8 @@ def main():
                             learning_rate=args.learning_rate,
                             warmup_iterations=args.warmup_iterations,
                             checkpoints_directory=args.checkpoints,
-                            visualizations_directory=args.visualizations)
+                            visualizations_directory=args.visualizations,
+                            device=device)
     print("Trainer initialized")
 
     trainer.train(start_iteration=args.start_iteration, end_iteration=args.end_iteration, view_step=args.view_step)
