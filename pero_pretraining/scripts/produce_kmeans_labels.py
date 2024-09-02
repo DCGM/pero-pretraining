@@ -29,6 +29,7 @@ def compute_features(model, dataset, kmeans_model, output_path):
     batch_operator = BatchOperator(device)
 
     output_file = open(output_path, 'w')
+    kmeans_model = kmeans_model.reshape(1, kmeans_model.shape[0], kmeans_model.shape[1])
 
     with torch.no_grad():
         for batch in dataset:
@@ -52,12 +53,14 @@ def compute_features(model, dataset, kmeans_model, output_path):
 
             features = features.permute(0, 2, 1)
             features_linear = features.reshape(-1, features.shape[-1])
-            kmeans_model = kmeans_model.reshape(1, kmeans_model.shape[0], kmeans_model.shape[1])
-            distances = torch.cdist(features_linear, kmeans_model)
+            distances = torch.cdist(features_linear, kmeans_model).squeeze()
+            #print(distances.shape, features_linear.shape, kmeans_model.shape)
             assignment = torch.argmin(distances, dim=1)
+            #print(assignment.shape, assignment)
             # reshape back to (batch_size, sequence_length)
-            assignment = assignment.reshape(features.shape[0], features.shape[2])
+            assignment = assignment.reshape(features.shape[0], features.shape[1])
             assignment = assignment.cpu().numpy()
+            #print(assignment.shape)
 
             for line_id, line_image_mask, line_ids in zip(batch['ids'], batch['image_masks'], assignment):
                 line_ids = line_ids[line_image_mask == 1]
@@ -76,6 +79,7 @@ def main():
     print("Model loaded")
 
     kmeans_model = np.load(args.kmeans_path)
+    kmeans_model = torch.from_numpy(kmeans_model).float().to(device)
     print("K-Means Model loaded")
 
     dataset = init_dataset(args.lmdb_path, args.lines_path, args.batch_size)
