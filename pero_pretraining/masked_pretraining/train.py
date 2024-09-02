@@ -18,24 +18,24 @@ from pero_pretraining.masked_pretraining.visualizer import MaskedVisualizer as V
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--trn-labels-file", help="Path to the training labels file.")
+    parser.add_argument("--trn-labels-file", help="Path to the training labels file.", required=True)
     parser.add_argument("--tst-labels-file", help="Path to the test labels file.")
-    parser.add_argument("--lmdb-path", help="Path to the LMDB.")
+    parser.add_argument("--lmdb-path", help="Path to the LMDB.", required=True)
     parser.add_argument("--augmentations", help="One of the predefined augmentations.", required=False, default=None)
 
-    parser.add_argument("--batch-size", help="Batch size.", type=int)
-    parser.add_argument("--learning-rate", help="Learning rate.", type=float)
-    parser.add_argument("--masking-prob", help="Masking probability.", type=float)
-    parser.add_argument("--dropout", help="Dropout.", type=float, default=0.0)
-    parser.add_argument("--start-iteration", help="Start iteration.", type=int)
-    parser.add_argument("--end-iteration", help="End iteration.", type=int)
+    parser.add_argument("--batch-size", help="Batch size.", type=int, default=16)
+    parser.add_argument("--learning-rate", help="Learning rate.", type=float, default=0.0002)
+    parser.add_argument("--masking-prob", help="Masking probability.", type=float, default=0.15)
+    parser.add_argument("--dropout", help="Dropout.", type=float, default=0.05)
+    parser.add_argument("--start-iteration", help="Start iteration.", type=int, default=0)
+    parser.add_argument("--end-iteration", help="End iteration.", type=int, default=100000)
     parser.add_argument("--max-line-width", help="Max line width.", type=int, default=2048, required=False)
     parser.add_argument("--warmup-iterations", help="Number of warmup iterations.", type=int, default=10000, required=False)
 
     parser.add_argument("--backbone", help="Backbone definition.", type=str, default="{}")
     parser.add_argument("--head", help="Head definition.", type=str, default="{}")
 
-    parser.add_argument("--view-step", help="Number of iterations between testing.", type=int)
+    parser.add_argument("--view-step", help="Number of iterations between testing.", type=int, default=500)
     parser.add_argument("--checkpoints", help="Path to a directory where checkpoints are saved.", default=None)
     parser.add_argument("--visualizations", help="Path to a directory where visualizations are saved.", default=None)
 
