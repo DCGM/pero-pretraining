@@ -64,8 +64,8 @@ class Tester(BatchOperator):
     def _update_errors(self, errors, result, labels, mask):
         output = result['output']
 
-        masked_output = output[mask == 1]
-        masked_labels = labels[mask == 1]
+        masked_output = output[mask == 1].cpu().numpy()
+        masked_labels = labels[mask == 1].cpu().numpy()
 
         for i, measured_error in enumerate(self.measured_errors):
             masked_predictions = np.argmax(masked_output, axis=1) if measured_error == 1 else self._topk(masked_output, measured_error)
