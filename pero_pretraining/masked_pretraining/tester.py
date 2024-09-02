@@ -32,10 +32,11 @@ class Tester(BatchOperator):
                 except StopIteration:
                     break
 
-                result = self.test_step(batch)
+                images, labels, mask = self.prepare_batch(batch)
+                result = self.test_step(images, labels, mask)
                 total_loss += result['loss']
 
-                self._update_errors(errors, result, batch)
+                self._update_errors(errors, result, labels, mask)
 
                 num_lines += self.batch_size(batch)
                 num_batches += 1
@@ -55,16 +56,13 @@ class Tester(BatchOperator):
 
         return output
     
-    def test_step(self, batch):
-        images, labels, mask = self.prepare_batch(batch)
+    def test_step(self, images, labels, mask):
         output = self.model.forward(images, labels, mask)
 
         return output
 
-    def _update_errors(self, errors, result, batch):
+    def _update_errors(self, errors, result, labels, mask):
         output = result['output']
-        labels = batch['labels']
-        mask = batch['mask']
 
         masked_output = output[mask == 1]
         masked_labels = labels[mask == 1]
