@@ -22,11 +22,13 @@ def parse_arguments():
     return args
 
 
-def compute_features(model, dataset, kmeans_model):
+def compute_features(model, dataset, kmeans_model, output_path):
     data = {}
     device = next(model.parameters()).device
 
     batch_operator = BatchOperator(device)
+
+    output_file = open(output_path, 'w')
 
     with torch.no_grad():
         for batch in dataset:
@@ -38,15 +40,30 @@ def compute_features(model, dataset, kmeans_model):
                 features = features.squeeze(2)
             print(features.shape, kmeans_model.shape)
 
+            # Feature shape is (batch_size, num_features, sequence_length)
+            # kmeans_model shape is (num_clusters, num_features)
+
+            # Compute feature-cluster assingments by using L2 distance and taking minimal distances
+
+            # Compute L2 distance between each feature and each cluster center
+            # features shape: (batch_size, num_features, sequence_length)
+            # kmeans_model shape: (num_clusters, num_features)
+            # distances shape: (batch_size, num_clusters, sequence_length)
+
             features = features.permute(0, 2, 1)
-            features = features.cpu().numpy()
+            features_linear = features.reshape(-1, features.shape[-1])
+            kmeans_model = kmeans_model.reshape(1, kmeans_model.shape[0], kmeans_model.shape[1])
+            distances = torch.cdist(features_linear, kmeans_model)
+            assignment = torch.argmin(distances, dim=1)
+            # reshape back to (batch_size, sequence_length)
+            assignment = assignment.reshape(features.shape[0], features.shape[2])
+            assignment = assignment.cpu().numpy()
 
-            for line_id, line_image_mask, line_features in zip(batch['ids'], batch['image_masks'], features):
-                line_features = line_features[line_image_mask == 1]
-                labels = kmeans_model.predict(line_features)
+            for line_id, line_image_mask, line_ids in zip(batch['ids'], batch['image_masks'], assignment):
+                line_ids = line_ids[line_image_mask == 1]
+                print(line_id, ' '.join([str(label) for label in line_ids]), file=output_file)
 
-                data[line_id] = labels.tolist()
-
+    output_file.close()
     return data
 
 
@@ -64,11 +81,8 @@ def main():
     dataset = init_dataset(args.lmdb_path, args.lines_path, args.batch_size)
     print("Dataset loaded")
 
-    labels = compute_features(model, dataset, kmeans_model)
+    labels = compute_features(model, dataset, kmeans_model, args.output)
     print(f"Labels computed ({len(labels)})")
-
-    save_labels(labels, args.output)
-    print(f"Labels saved to {args.output}")
 
     return 0
 
