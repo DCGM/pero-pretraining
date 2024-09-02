@@ -4,7 +4,7 @@ from einops import einops
 from abc import ABC, abstractmethod
 from pero_pretraining.models.helpers import create_vgg_encoder
 from numpy import random as np_random
-
+import numpy as np
 class TransformerEncoder(ABC, torch.nn.Module):
     def __init__(self, height=40, patch_size=(40, 8), in_channels=3, model_dim=512, num_heads=4, num_blocks=6,
                  feedforward_dim=2048, dropout=0.0, *args, **kwargs):
@@ -47,10 +47,11 @@ class TransformerEncoder(ABC, torch.nn.Module):
 
         return x
     
-    def mask(self, x, mask):
+    def mask(self, x: torch.Tensor, mask: np.ndarray) -> torch.Tensor:
         # x has shape (N, C, H, W)
-        # mask has shape (N, W/8)
+        # mask has shape (N, W/8) and dtype int64
         # expand mask to shape (N, C, H, W/8)
+        mask = torch.tensor(mask)
         mask = mask.unsqueeze(1).unsqueeze(2).expand(-1, self.in_channels, self.height, -1)
         # stretch mask to shape (N, C, H, W)
         mask = einops.repeat(mask, 'n c h w -> n c h (s w)', s=self.patch_size[1])
