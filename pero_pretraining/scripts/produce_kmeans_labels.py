@@ -31,15 +31,17 @@ def compute_features(model, dataset, kmeans_model, output_path):
     output_file = open(output_path, 'w')
     kmeans_model = kmeans_model.reshape(1, kmeans_model.shape[0], kmeans_model.shape[1])
 
+    counter = 0
     with torch.no_grad():
         for batch in dataset:
             images = batch_operator.prepare_batch(batch)
+            counter += images.shape[0]
 
             features = model(images)
 
             if len(features.shape) == 4:
                 features = features.squeeze(2)
-            print(features.shape, kmeans_model.shape)
+            print(counter, features.shape)
 
             # Feature shape is (batch_size, num_features, sequence_length)
             # kmeans_model shape is (num_clusters, num_features)
