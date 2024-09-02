@@ -3,7 +3,7 @@ import torch
 from einops import einops
 from abc import ABC, abstractmethod
 from pero_pretraining.models.helpers import create_vgg_encoder
-
+from numpy import random as np_random
 
 class TransformerEncoder(ABC, torch.nn.Module):
     def __init__(self, height=40, patch_size=(40, 8), in_channels=3, model_dim=512, num_heads=4, num_blocks=6,
@@ -23,6 +23,12 @@ class TransformerEncoder(ABC, torch.nn.Module):
         self.position_embedding_layer = PositionalEncoding(self.model_dim)
         self.encoder_layers = self.create_layers()        
         self.intermediate_norm = torch.nn.LayerNorm(self.model_dim, eps=1e-05)
+        # create mask pattern as random noise, but generated with the same seed
+        np_random.seed(42)
+        mask_tile = np_random.rand(1, self.in_channels, self.patch_size[0], self.patch_size[1])
+        mask_tile = torch.tensor(mask_tile, dtype=torch.float32)
+
+        self.mask_pattern = einops.repeat(mask_tile, 'n c h w -> n c h (w x)', x=1024)
 
     def create_layers(self):
         encoder_layer = torch.nn.TransformerEncoderLayer(d_model=self.model_dim,
@@ -42,13 +48,16 @@ class TransformerEncoder(ABC, torch.nn.Module):
         return x
     
     def mask(self, x, mask):
-        step = self.patch_size[1] if type(self.patch_size) in (tuple, list) else self.patch_size
-        x = x.unfold(-1, step, step)
+        # x has shape (N, C, H, W)
+        # mask has shape (N, W/8)
+        # expand mask to shape (N, C, H, W/8)
+        mask = mask.unsqueeze(1).unsqueeze(2).expand(-1, self.in_channels, self.height, -1)
+        # stretch mask to shape (N, C, H, W)
+        mask = einops.repeat(mask, 'n c h w -> n c h (s w)', s=self.patch_size[1])
 
-        x = einops.rearrange(x, 'n c h s w -> n s c h w')
-        noise = torch.rand_like(x)
-        x[mask == 1] = noise[mask == 1]
-        x = einops.rearrange(x, 'n s c h w -> n c h (s w)')
+        mask_pattern = self.mask_pattern.expand(x.shape[0], -1, -1, -1)
+
+        x[mask == 1] = mask_pattern[mask == 1]
 
         return x
 
