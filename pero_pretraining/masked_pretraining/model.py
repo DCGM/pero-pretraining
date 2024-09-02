@@ -5,11 +5,12 @@ from pero_pretraining.models.transformers import VisionTransformerEncoder, VggTr
 
 def init_backbone(backbone_definition):
     backbone_type = backbone_definition.get("type", "vit")
+    del backbone_definition["type"]
     
     if backbone_type == "vit":
-        backbone = VisionTransformerEncoder()
+        backbone = VisionTransformerEncoder(**backbone_definition)
     elif backbone_type == "vggt":
-        backbone = VggTransformerEncoder()
+        backbone = VggTransformerEncoder(**backbone_definition)
     else:
         raise ValueError(f"Unknown backbone type: {backbone_type}")
     
