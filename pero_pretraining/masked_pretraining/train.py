@@ -43,11 +43,27 @@ def parse_arguments():
     args = parser.parse_args()
     return args
 
+import einops
+
+class Net(torch.nn.Module):
+    def __init__(self, backbone, head):
+        super(Net, self).__init__()
+
+        self.backbone = backbone
+        self.head = head
+
+    def forward(self, x, mask=None):
+        x = self.backbone(x, mask)
+
+        x = einops.rearrange(x, 'n c w -> n w c')
+        x = self.head(x)
+        return x
+
 
 def init_model(device, backbone_definition, head_definition, path=None):
     backbone = init_backbone(backbone_definition)
     head = init_head(head_definition)
-    net = torch.nn.Sequential(backbone, head)
+    net = Net(backbone, head)
 
     model = MaskedTransformerEncoder(net)
     model.to(device)
