@@ -26,7 +26,8 @@ def main():
             image_path = parts[0]
             labels = parts[1:]
             txn.put(f"{i:10d}".encode(), json.dumps({"image": image_path, "labels": labels}).encode())
-
+            if i % 1000 == 0:
+                print(f"Processed {i} lines")
     txn.commit()
     env.close()
 
