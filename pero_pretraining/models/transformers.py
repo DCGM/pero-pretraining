@@ -28,7 +28,7 @@ class TransformerEncoder(ABC, torch.nn.Module):
         mask_tile = np_random.rand(1, self.in_channels, self.patch_size[0], self.patch_size[1])
         mask_tile = torch.tensor(mask_tile, dtype=torch.float32)
 
-        self.mask_pattern = einops.repeat(mask_tile, 'n c h w -> n c h (w x)', x=1024)
+        self.mask_pattern = einops.repeat(mask_tile, 'n c h w -> n c h (w x)', x=1024).to("cuda")
 
     def create_layers(self):
         encoder_layer = torch.nn.TransformerEncoderLayer(d_model=self.model_dim,
@@ -51,14 +51,14 @@ class TransformerEncoder(ABC, torch.nn.Module):
         # x has shape (N, C, H, W)
         # mask has shape (N, W/8) and dtype int64
         # expand mask to shape (N, C, H, W/8)
-        mask = torch.tensor(mask)
+        mask = torch.tensor(mask).to(x.device)
         mask = mask.unsqueeze(1).unsqueeze(2).expand(-1, self.in_channels, self.height, -1)
         # stretch mask to shape (N, C, H, W)
         mask = einops.repeat(mask, 'n c h w -> n c h (s w)', s=self.patch_size[1])
 
         mask_pattern = self.mask_pattern.expand(x.shape[0], -1, -1, -1)
 
-        x[mask == 1] = mask_pattern[mask == 1]
+        x[mask == 1] = mask_pattern[:, :, :, :x.shape[3]][mask == 1]
 
         return x
 
