@@ -7,7 +7,9 @@ import lmdb
 import json
 
 def parse_arguments():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Convert text file with image names and token labels to LMDB. "
+                                                 "The LMDB is then used in training dataset to allow for fast random access "
+                                                 "without the need to load the whole dataset into memory.")
     parser.add_argument("--input", required=True, help="Path to the input text file.")
     parser.add_argument("--output", required=True, help="Path to the output LMDB.")
     args = parser.parse_args()
