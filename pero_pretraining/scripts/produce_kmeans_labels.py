@@ -17,6 +17,7 @@ def parse_arguments():
     parser.add_argument("--lmdb-path", help="Path to the LMDB.")
     parser.add_argument("--batch-size", help="Batch size.", default=32, required=False, type=int)
     parser.add_argument("--output", help="Path to the output file.")
+    parser.add_argument("--skip", type=int, default=0)
 
     args = parser.parse_args()
     return args
@@ -41,7 +42,9 @@ def compute_features(model, dataset, kmeans_model, output_path):
 
             if len(features.shape) == 4:
                 features = features.squeeze(2)
-            print(counter, features.shape)
+            if counter % 1000 == 0:
+                print(counter, features.shape)
+
 
             # Feature shape is (batch_size, num_features, sequence_length)
             # kmeans_model shape is (num_clusters, num_features)
@@ -84,7 +87,7 @@ def main():
     kmeans_model = torch.from_numpy(kmeans_model).float().to(device)
     print("K-Means Model loaded")
 
-    dataset = init_dataset(args.lmdb_path, args.lines_path, args.batch_size)
+    dataset = init_dataset(args.lmdb_path, args.lines_path, args.batch_size, args.skip)
     print("Dataset loaded")
 
     labels = compute_features(model, dataset, kmeans_model, args.output)

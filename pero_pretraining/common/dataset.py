@@ -5,7 +5,7 @@ import numpy as np
 
 
 class Dataset:
-    def __init__(self, lmdb_path, lines_path, augmentations=None, pair_images=False, max_width=2048, label_step=8):
+    def __init__(self, lmdb_path, lines_path, augmentations=None, pair_images=False, max_width=2048, label_step=8, skip=0):
         self.lmdb_path = lmdb_path
         self.lines_path = lines_path
         self.augmentations = augmentations
@@ -19,6 +19,7 @@ class Dataset:
         self._labels = {}
         self._has_labels = False
 
+        self.skip = skip
         self._load_data()
         self._txn = lmdb.open(self.lmdb_path, readonly=True).begin()
 
@@ -64,9 +65,10 @@ class Dataset:
         return image_id, labels
 
     def __len__(self):
-        return len(self._image_ids)
+        return len(self._image_ids) - self.skip 
 
     def __getitem__(self, idx):
+        idx = idx + self.skip
         image_id = self._image_ids[idx]
         image = self._load_image(image_id)[:, :self.max_width]
         labels = None
