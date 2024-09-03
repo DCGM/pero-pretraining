@@ -147,11 +147,12 @@ class DatasetLMDB:
         return image_id, labels
 
     def __len__(self):
-        return len(self._image_ids)
+        return self.image_count
 
     def __getitem__(self, idx):
-        image_id = self._image_ids[idx]
-        image, labels = self._load_image(image_id)[:, :self.max_width]
+        image, labels = self._load_image_and_labels(idx)
+        image = image[:, :self.max_width]
+        labels = labels[:(self.max_width // self.label_step)]
         image2 = None
 
         if self.augmentations is not None:
@@ -166,7 +167,7 @@ class DatasetLMDB:
             "image": image,
             "image2": image2,
             "labels": labels,
-            "image_id": image_id
+            "image_id": idx
         }
 
         return item
