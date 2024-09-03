@@ -2,7 +2,7 @@ import cv2
 import lmdb
 import logging
 import numpy as np
-
+import json
 
 class Dataset:
     def __init__(self, lmdb_path, lines_path, augmentations=None, pair_images=False, max_width=2048, label_step=8, skip=0):
@@ -97,6 +97,80 @@ class Dataset:
         }
 
         return item
+
+
+class DatasetLMDB:
+    def __init__(self, lmdb_path, lines_path, augmentations=None, pair_images=False, max_width=2048, label_step=8):
+        self.lmdb_path = lmdb_path
+        self.lines_path = lines_path
+        self.augmentations = augmentations
+        self.pair_images = pair_images
+        self.max_width = max_width
+        self.label_step = label_step
+
+        self._logger = logging.getLogger(__name__)
+
+        self._has_labels = False
+
+        self._txn_labels = lmdb.open(self.lines_path, readonly=True).begin()
+        self._txn = lmdb.open(self.lmdb_path, readonly=True).begin()
+
+        self.image_count = self._txn_labels.stat()['entries']
+
+    def _load_image_and_labels(self, image_id):
+        #txn.put(f"{i:10d}".encode(), json.dumps({"image": image_path, "labels": labels}).encode())
+        image_info = self._txn_labels.get(f"{image_id:10d}".encode())
+        image_info = json.loads(image_info)
+        image_id = image_info["image"]
+        labels = image_info["labels"]
+
+        data = self._txn.get(image_id.encode())
+        if data is None:
+            self._logger.warning(f"Unable to load image '{image_id}' specified in '{self.lines_path}' from LMDB '{self.lmdb_path}'.")
+            return None
+
+        img = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
+        if img is None:
+            self._logger.warning(f"Unable to decode image '{image_id}'.")
+            return None
+
+        return img, labels
+
+    @staticmethod
+    def _parse_line(line):
+        if " " in line:
+            image_id, *labels = line.strip().split()
+        else:
+            image_id = line.strip()
+            labels = None
+
+        return image_id, labels
+
+    def __len__(self):
+        return len(self._image_ids)
+
+    def __getitem__(self, idx):
+        image_id = self._image_ids[idx]
+        image, labels = self._load_image(image_id)[:, :self.max_width]
+        image2 = None
+
+        if self.augmentations is not None:
+            image = self.augmentations(image=image)
+
+        if self.pair_images:
+            image2 = np.copy(image)
+            if self.augmentations is not None:
+                image2 = self.augmentations(image=image2)
+
+        item = {
+            "image": image,
+            "image2": image2,
+            "labels": labels,
+            "image_id": image_id
+        }
+
+        return item
+
 
 
 def parse_arguments():

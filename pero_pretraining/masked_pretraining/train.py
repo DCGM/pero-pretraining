@@ -6,7 +6,7 @@ import json
 from functools import partial
 from safe_gpu.safe_gpu import GPUOwner
 
-from pero_pretraining.common.dataset import Dataset
+from pero_pretraining.common.dataset import DatasetLMDB
 from pero_pretraining.common.helpers import get_checkpoint_path, get_visualization_path
 from pero_pretraining.common.dataloader import create_dataloader, BatchCreator
 from pero_pretraining.common.lr_scheduler import WarmupSchleduler
@@ -75,8 +75,8 @@ def init_model(device, backbone_definition, head_definition, path=None):
 
 
 def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations):
-    trn_dataset = Dataset(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=False)
-    tst_dataset = Dataset(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=False)
+    trn_dataset = DatasetLMDB(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=False)
+    tst_dataset = DatasetLMDB(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=False)
 
     batch_creator = BatchCreator()
 
