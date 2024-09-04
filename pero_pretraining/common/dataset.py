@@ -100,13 +100,15 @@ class Dataset:
 
 
 class DatasetLMDB:
-    def __init__(self, lmdb_path, lines_path, augmentations=None, pair_images=False, max_width=2048, label_step=8):
+    def __init__(self, lmdb_path, lines_path, augmentations=None, pair_images=False, max_width=2048, label_step=8, fill_width=False, exact_width=False):
         self.lmdb_path = lmdb_path
         self.lines_path = lines_path
         self.augmentations = augmentations
         self.pair_images = pair_images
         self.max_width = max_width
         self.label_step = label_step
+        self.fill_width = fill_width
+        self.exact_width = exact_width
 
         self._logger = logging.getLogger(__name__)
 
@@ -116,6 +118,7 @@ class DatasetLMDB:
         self._txn = lmdb.open(self.lmdb_path, readonly=True).begin()
 
         self.image_count = self._txn_labels.stat()['entries']
+        self._eol_patch = None
 
     def _load_image_and_labels(self, image_id):
         #txn.put(f"{i:10d}".encode(), json.dumps({"image": image_path, "labels": labels}).encode())
@@ -149,9 +152,47 @@ class DatasetLMDB:
     def __len__(self):
         return len(self._image_ids)
 
+    def _get_fixed_width_image(self, image_id):
+        all_images = []
+        all_labels = []
+        width = 0
+        while True:
+            image, labels = self._load_image(image_id)[:, :self.max_width]
+            width += image.shape[1]
+            if width >= self.max_width and not self.exact_width:
+                break
+            if self._eol_patch is None:
+                self._eol_patch = np.zeros((image.shape[0], self.label_step, 3), dtype=np.uint8)
+                self._eol_patch[:, 0::3, 0] = 255
+                self._eol_patch[:, 1::3, 0] = 255
+                self._eol_patch[:, 2::3, 0] = 255
+
+            # Image width must be divisible by 8 - pad it
+            if image.shape[1] % self.label_step != 0:
+                pad = self.label_step - image.shape[1] % self.label_step
+                image = np.concatenate([image, np.zeros((image.shape[0], pad, 3), dtype=np.uint8)], axis=1)
+            labels += [0]
+            all_images.append(image)
+            all_images.append(self._eol_patch)
+            all_labels.append(labels)
+            image_id = (image_id + 1) % self.image_count
+            if width >= self.max_width:
+                break
+
+        image = np.concatenate(all_images, axis=1)
+        labels = np.concatenate(all_labels)
+
+        image = image[:, :self.max_width]
+        labels = labels[:(self.max_width // self.label_step)]
+
+        return image, labels
+
     def __getitem__(self, idx):
         image_id = self._image_ids[idx]
-        image, labels = self._load_image(image_id)[:, :self.max_width]
+        if self.fill_width:
+            image, labels = self._get_fixed_width_image(image_id)
+        else:
+            image, labels = self._load_image(image_id)[:, :self.max_width]
         image2 = None
 
         if self.augmentations is not None:

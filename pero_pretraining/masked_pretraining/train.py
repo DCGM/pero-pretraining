@@ -2,6 +2,7 @@ import cv2
 import torch
 import argparse
 import json
+import einops
 
 from functools import partial
 from safe_gpu.safe_gpu import GPUOwner
@@ -23,6 +24,9 @@ def parse_arguments():
     parser.add_argument("--tst-labels-file", help="Path to the test labels file.")
     parser.add_argument("--lmdb-path", help="Path to the LMDB.", required=True)
     parser.add_argument("--augmentations", help="One of the predefined augmentations.", required=False, default=None)
+    parser.add_argument("--max-width", help="Limit width of examples.", type=int, default=2048)
+    parser.add_argument("--fill-width", help="Fill the maximum width with text lines (as long as they fit).", action="store_true")
+    parser.add_argument("--exact-width", help="Fill the maximum width with text lines exactly (only effective with --fill-width).", action="store_true")
 
     parser.add_argument("--batch-size", help="Batch size.", type=int, default=16)
     parser.add_argument("--learning-rate", help="Learning rate.", type=float, default=0.0002)
@@ -43,7 +47,7 @@ def parse_arguments():
     args = parser.parse_args()
     return args
 
-import einops
+
 
 class Net(torch.nn.Module):
     def __init__(self, backbone, head):
@@ -74,9 +78,11 @@ def init_model(device, backbone_definition, head_definition, path=None):
     return model
 
 
-def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations):
-    trn_dataset = DatasetLMDB(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=False)
-    tst_dataset = DatasetLMDB(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=False)
+def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations, max_width, exact_width, fill_width):
+    trn_dataset = DatasetLMDB(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=False,
+                              exact_width=exact_width, max_width=max_width, fill_width=fill_width)
+    tst_dataset = DatasetLMDB(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=False,
+                              exact_width=exact_width, max_width=max_width, fill_width=fill_width)
 
     batch_creator = BatchCreator()
 
@@ -171,7 +177,11 @@ def main():
                                              tst_path=args.tst_labels_file,
                                              lmdb_path=args.lmdb_path,
                                              batch_size=args.batch_size,
-                                             augmentations=args.augmentations)
+                                             augmentations=args.augmentations,
+                                             exact_width=args.exact_width,
+                                             fill_width=args.fill_width,
+                                             max_width=args.max_width)
+
     print("Datasets initialized")
 
     trn_visualizer, tst_visualizer = None, None #init_visualizers(model, trn_dataset, tst_dataset, device=device)
