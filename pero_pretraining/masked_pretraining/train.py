@@ -106,11 +106,12 @@ def init_testers(model, trn_dataloader, tst_dataloader, device):
     return trn_tester, tst_tester
 
 
-def init_training(model, dataset, trn_tester, tst_tester, trn_visualizer, tst_visualizer, learning_rate, warmup_iterations, checkpoints_directory, visualizations_directory, device):
+def init_training(model, dataset, trn_tester, tst_tester, trn_visualizer, tst_visualizer, learning_rate,
+                  warmup_iterations, checkpoints_directory, visualizations_directory, device, masking_prob):
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = WarmupSchleduler(optimizer, learning_rate, warmup_iterations, 1)
 
-    trainer = Trainer(model, dataset, optimizer, scheduler, device=device, masking_prob=0.2)
+    trainer = Trainer(model, dataset, optimizer, scheduler, device=device, masking_prob=masking_prob)
     trainer.on_view_step = partial(view_step_handler, 
                                    trn_tester=trn_tester, 
                                    tst_tester=tst_tester, 
@@ -200,7 +201,8 @@ def main():
                             warmup_iterations=args.warmup_iterations,
                             checkpoints_directory=args.checkpoints,
                             visualizations_directory=args.visualizations,
-                            device=device)
+                            device=device,
+                            masking_prob=args.masking_prob)
     print("Trainer initialized")
 
     trainer.train(start_iteration=args.start_iteration, end_iteration=args.end_iteration, view_step=args.view_step)
