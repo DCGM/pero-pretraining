@@ -157,7 +157,7 @@ class DatasetLMDB:
         all_labels = []
         width = 0
         while True:
-            image, labels = self._load_image(image_id)[:, :self.max_width]
+            image, labels = self._load_image_and_labels(image_id)
             width += image.shape[1]
             if width >= self.max_width and not self.exact_width:
                 break
@@ -188,7 +188,7 @@ class DatasetLMDB:
         if self.fill_width:
             image, labels = self._get_fixed_width_image(idx)
         else:
-            image, labels = self._load_image(idx)[:, :self.max_width]
+            image, labels = self._load_image_and_labels(idx)
         image = image[:, :self.max_width]
         labels = labels[:(self.max_width // self.label_step)]
         image2 = None
