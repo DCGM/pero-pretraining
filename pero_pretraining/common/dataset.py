@@ -150,7 +150,7 @@ class DatasetLMDB:
         return image_id, labels
 
     def __len__(self):
-        return len(self._image_ids)
+        return self.image_count
 
     def _get_fixed_width_image(self, image_id):
         all_images = []
@@ -182,17 +182,15 @@ class DatasetLMDB:
         image = np.concatenate(all_images, axis=1)
         labels = np.concatenate(all_labels)
 
-        image = image[:, :self.max_width]
-        labels = labels[:(self.max_width // self.label_step)]
-
         return image, labels
 
     def __getitem__(self, idx):
-        image_id = self._image_ids[idx]
         if self.fill_width:
-            image, labels = self._get_fixed_width_image(image_id)
+            image, labels = self._get_fixed_width_image(idx)
         else:
-            image, labels = self._load_image(image_id)[:, :self.max_width]
+            image, labels = self._load_image(idx)[:, :self.max_width]
+        image = image[:, :self.max_width]
+        labels = labels[:(self.max_width // self.label_step)]
         image2 = None
 
         if self.augmentations is not None:
@@ -207,7 +205,7 @@ class DatasetLMDB:
             "image": image,
             "image2": image2,
             "labels": labels,
-            "image_id": image_id
+            "image_id": idx
         }
 
         return item
