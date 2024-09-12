@@ -118,23 +118,44 @@ class DatasetLMDB:
         self._txn = lmdb.open(self.lmdb_path, readonly=True).begin()
 
         self.image_count = self._txn_labels.stat()['entries']
+
+        print("DATASET", lines_path, self.image_count)
+
         self._eol_patch = None
 
     def _load_image_and_labels(self, image_id):
-        #txn.put(f"{i:10d}".encode(), json.dumps({"image": image_path, "labels": labels}).encode())
-        image_info = self._txn_labels.get(f"{image_id:10d}".encode())
+        lmdb_id = f"{image_id:10d}"
+        image_info = self._txn_labels.get(lmdb_id.encode())
         image_info = json.loads(image_info)
-        image_id = image_info["image"]
         labels = image_info["labels"]
 
-        data = self._txn.get(image_id.encode())
-        if data is None:
-            self._logger.warning(f"Unable to load image '{image_id}' specified in '{self.lines_path}' from LMDB '{self.lmdb_path}'.")
-            return None
+        if "image" in image_info:
+            image_id = image_info["image"]
+            data = self._txn.get(image_id.encode())
+            if data is None:
+                self._logger.warning(f"Unable to load image '{image_id}' specified in '{self.lines_path}' from LMDB '{self.lmdb_path}'.")
+                return None
 
-        img = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
-        if img is None:
-            self._logger.warning(f"Unable to decode image '{image_id}'.")
+            img = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
+            if img is None:
+                self._logger.warning(f"Unable to decode image '{image_id}'.")
+                return None
+        elif "images" in image_info:
+            images = image_info["images"]
+            img = []
+            for image_id in images:
+                data = self._txn.get(image_id.encode())
+                if data is None:
+                    self._logger.warning(f"Unable to load image '{image_id}' specified in '{self.lines_path}' from LMDB '{self.lmdb_path}'.")
+                    return None
+                image_data = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
+                pad = self.label_step - image_data.shape[1] % self.label_step
+                pad += self.label_step
+                image_data = np.concatenate([image_data, np.zeros((image_data.shape[0], pad, 3), dtype=np.uint8)], axis=1)
+                img.append(image_data)
+            img = np.concatenate(img, axis=1)
+        else:
+            self._logger.warning(f"Image/images not found in the line {image_id}.")
             return None
 
         return img, labels
@@ -209,7 +230,6 @@ class DatasetLMDB:
         }
 
         return item
-
 
 
 def parse_arguments():
