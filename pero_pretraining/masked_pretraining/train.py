@@ -154,8 +154,8 @@ def view_step_handler(iteration, model, trn_tester, tst_tester, trn_visualizer, 
     test_model(iteration, trn_tester, scheduler)
     test_model(iteration, tst_tester, scheduler)
 
-    #visualize(trn_visualizer, get_visualization_path(visualizations_directory, iteration, "trn"))
-    #visualize(tst_visualizer, get_visualization_path(visualizations_directory, iteration, "tst"))
+    visualize(trn_visualizer, get_visualization_path(visualizations_directory, iteration, "trn"))
+    visualize(tst_visualizer, get_visualization_path(visualizations_directory, iteration, "tst"))
 
 
 def main():
@@ -185,7 +185,7 @@ def main():
 
     print("Datasets initialized")
 
-    trn_visualizer, tst_visualizer = None, None #init_visualizers(model, trn_dataset, tst_dataset, device=device)
+    trn_visualizer, tst_visualizer = init_visualizers(model, trn_dataset, tst_dataset, device=device)
     print("Visualizers initialized")
 
     trn_tester, tst_tester = init_testers(model, trn_dataset, tst_dataset, device=device)
