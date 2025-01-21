@@ -52,6 +52,9 @@ class Visualizer:
                          line_padding=0, mask=None):
         lines = []
         for i, line_image in enumerate(images):
+            if line_image.dtype == np.float32:
+                line_image = (line_image * 255).astype(np.uint8)
+
             line = [line_image]
 
             if line_padding > 0:
@@ -99,6 +102,8 @@ class Visualizer:
 
                     line.append(self.visualize_annotation(line_image, labels_predictions_mask, colors_dict=colors))
 
+            # print("V:column")
+            # import IPython; IPython.embed()
             lines.append(np.concatenate(line, axis=0))
 
         image = np.concatenate(lines, axis=0)

@@ -1,3 +1,4 @@
+import os
 import cv2
 import torch
 import argparse
@@ -14,6 +15,7 @@ from pero_pretraining.autoencoders.model import init_model as init_autoencoder_m
 from pero_pretraining.autoencoders.tester import Tester
 from pero_pretraining.autoencoders.trainer import Trainer
 from pero_pretraining.autoencoders.visualizer import AutoEncodersVisualizer as Visualizer
+from pero_pretraining.autoencoders.batch_operator import BatchOperator
 
 
 def parse_arguments():
@@ -54,6 +56,11 @@ def init_model(device, model_definition, path=None):
     return model
 
 
+def init_batch_operator(device):
+    batch_operator = BatchOperator(device=device)
+    return batch_operator
+
+
 def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations):
     trn_dataset = Dataset(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=False)
     tst_dataset = Dataset(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=False)
@@ -66,25 +73,26 @@ def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations):
     return trn_dataloader, tst_dataloader
 
 
-def init_visualizers(model, trn_dataloader, tst_dataloader):
-    trn_visualizer = Visualizer(model, trn_dataloader)
-    tst_visualizer = Visualizer(model, tst_dataloader)
+def init_visualizers(batch_operator, model, trn_dataloader, tst_dataloader):
+    trn_visualizer = Visualizer(batch_operator, model, trn_dataloader)
+    tst_visualizer = Visualizer(batch_operator, model, tst_dataloader)
 
     return trn_visualizer, tst_visualizer
 
 
-def init_testers(model, trn_dataset, tst_dataset):
-    trn_tester = Tester(model, trn_dataset, max_lines=1000)
-    tst_tester = Tester(model, tst_dataset)
+def init_testers(batch_operator, model, trn_dataset, tst_dataset):
+    trn_tester = Tester(batch_operator, model, trn_dataset, max_lines=1000)
+    tst_tester = Tester(batch_operator, model, tst_dataset)
 
     return trn_tester, tst_tester
 
 
-def init_training(model, dataset, trn_tester, tst_tester, trn_visualizer, tst_visualizer, learning_rate, warmup_iterations, checkpoints_directory, visualizations_directory):
+def init_training(batch_operator, model, dataset, trn_tester, tst_tester, trn_visualizer, tst_visualizer, learning_rate,
+                  warmup_iterations, checkpoints_directory, visualizations_directory):
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = WarmupSchleduler(optimizer, learning_rate, warmup_iterations, 1)
 
-    trainer = Trainer(model, dataset, optimizer, scheduler)
+    trainer = Trainer(batch_operator, model, dataset, optimizer, scheduler)
     trainer.on_view_step = partial(view_step_handler,
                                    trn_tester=trn_tester,
                                    tst_tester=tst_tester,
@@ -94,6 +102,12 @@ def init_training(model, dataset, trn_tester, tst_tester, trn_visualizer, tst_vi
                                    visualizations_directory=visualizations_directory,
                                    scheduler=scheduler)
     return trainer
+
+
+def init_directories(*directories):
+    for directory in directories:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
 
 
 def report(iteration, dataset, result, scheduler):
@@ -142,6 +156,12 @@ def main():
                        path=checkpoint_path)
     print(model)
 
+    init_directories(args.checkpoints, args.visualizations)
+    print("Directories initialized")
+
+    batch_operator = init_batch_operator(device)
+    print("Batch operator initialized")
+
     trn_dataset, tst_dataset = init_datasets(trn_path=args.trn_path,
                                              tst_path=args.tst_path,
                                              lmdb_path=args.lmdb_path,
@@ -149,13 +169,14 @@ def main():
                                              augmentations=args.augmentations)
     print("Datasets initialized")
 
-    trn_visualizer, tst_visualizer = init_visualizers(model, trn_dataset, tst_dataset)
+    trn_visualizer, tst_visualizer = init_visualizers(batch_operator, model, trn_dataset, tst_dataset)
     print("Visualizers initialized")
 
-    trn_tester, tst_tester = init_testers(model, trn_dataset, tst_dataset)
+    trn_tester, tst_tester = init_testers(batch_operator, model, trn_dataset, tst_dataset)
     print("Testers initialized")
 
-    trainer = init_training(model=model,
+    trainer = init_training(batch_operator=batch_operator,
+                            model=model,
                             dataset=trn_dataset,
                             trn_tester=trn_tester,
                             tst_tester=tst_tester,

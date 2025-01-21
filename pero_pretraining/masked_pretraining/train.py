@@ -1,13 +1,13 @@
+import os
 import cv2
+import json
 import torch
 import argparse
-import json
-import einops
 
 from functools import partial
 from safe_gpu.safe_gpu import GPUOwner
 
-from pero_pretraining.common.dataset import DatasetLMDB
+from pero_pretraining.common.dataset import DatasetLMDB, Dataset
 from pero_pretraining.common.helpers import get_checkpoint_path, get_visualization_path
 from pero_pretraining.common.dataloader import create_dataloader, BatchCreator
 from pero_pretraining.common.lr_scheduler import WarmupSchleduler
@@ -16,6 +16,7 @@ from pero_pretraining.masked_pretraining.model import init_backbone, init_head, 
 from pero_pretraining.masked_pretraining.tester import Tester
 from pero_pretraining.masked_pretraining.trainer import Trainer
 from pero_pretraining.masked_pretraining.visualizer import MaskedVisualizer as Visualizer
+from pero_pretraining.masked_pretraining.batch_operator import BatchOperator
 
 
 def parse_arguments():
@@ -48,28 +49,11 @@ def parse_arguments():
     return args
 
 
-
-class Net(torch.nn.Module):
-    def __init__(self, backbone, head):
-        super(Net, self).__init__()
-
-        self.backbone = backbone
-        self.head = head
-
-    def forward(self, x, mask=None):
-        x = self.backbone(x, mask)
-
-        x = einops.rearrange(x, 'n c w -> n w c')
-        x = self.head(x)
-        return x
-
-
 def init_model(device, backbone_definition, head_definition, path=None):
     backbone = init_backbone(backbone_definition)
     head = init_head(head_definition)
-    net = Net(backbone, head)
 
-    model = MaskedTransformerEncoder(net)
+    model = MaskedTransformerEncoder(backbone, head)
     model.to(device)
 
     if path is not None:
@@ -78,40 +62,46 @@ def init_model(device, backbone_definition, head_definition, path=None):
     return model
 
 
+def init_batch_operator(device, masking_prob):
+    batch_operator = BatchOperator(device=device, masking_prob=masking_prob)
+    return batch_operator
+
+
 def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations, max_width, exact_width, fill_width):
-    trn_dataset = DatasetLMDB(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=False,
-                              exact_width=exact_width, max_width=max_width, fill_width=fill_width)
-    tst_dataset = DatasetLMDB(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=False,
-                              exact_width=exact_width, max_width=max_width, fill_width=fill_width)
+    trn_dataset = Dataset(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=False)
+    tst_dataset = Dataset(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=False)
 
     batch_creator = BatchCreator()
 
     trn_dataloader = create_dataloader(trn_dataset, batch_creator=batch_creator, batch_size=batch_size, shuffle=True, num_workers=4)
     tst_dataloader = create_dataloader(tst_dataset, batch_creator=batch_creator, batch_size=batch_size, shuffle=False, num_workers=4)
 
+    trn_dataloader.name = trn_dataset.name
+    tst_dataloader.name = tst_dataset.name
+
     return trn_dataloader, tst_dataloader
 
 
-def init_visualizers(model, trn_dataloader, tst_dataloader, device):
-    trn_visualizer = Visualizer(model, trn_dataloader, device=device)
-    tst_visualizer = Visualizer(model, tst_dataloader, device=device)
+def init_visualizers(batch_operator, model, trn_dataloader, tst_dataloader):
+    trn_visualizer = Visualizer(batch_operator, model, trn_dataloader)
+    tst_visualizer = Visualizer(batch_operator, model, tst_dataloader)
 
     return trn_visualizer, tst_visualizer
 
 
-def init_testers(model, trn_dataloader, tst_dataloader, device):
-    trn_tester = Tester(model, trn_dataloader, max_lines=500, device=device)
-    tst_tester = Tester(model, tst_dataloader, max_lines=500, device=device)
+def init_testers(batch_operator, model, trn_dataloader, tst_dataloader):
+    trn_tester = Tester(batch_operator, model, trn_dataloader, max_lines=1000)
+    tst_tester = Tester(batch_operator, model, tst_dataloader)
 
     return trn_tester, tst_tester
 
 
-def init_training(model, dataset, trn_tester, tst_tester, trn_visualizer, tst_visualizer, learning_rate,
-                  warmup_iterations, checkpoints_directory, visualizations_directory, device, masking_prob):
+def init_training(batch_operator, model, dataset, trn_tester, tst_tester, trn_visualizer, tst_visualizer, learning_rate,
+                  warmup_iterations, checkpoints_directory, visualizations_directory):
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = WarmupSchleduler(optimizer, learning_rate, warmup_iterations, 1)
 
-    trainer = Trainer(model, dataset, optimizer, scheduler, device=device, masking_prob=masking_prob)
+    trainer = Trainer(batch_operator, model, dataset, optimizer, scheduler)
     trainer.on_view_step = partial(view_step_handler, 
                                    trn_tester=trn_tester, 
                                    tst_tester=tst_tester, 
@@ -124,10 +114,16 @@ def init_training(model, dataset, trn_tester, tst_tester, trn_visualizer, tst_vi
     return trainer
 
 
+def init_directories(*directories):
+    for directory in directories:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+
 def report(iteration, dataset, result, scheduler):
     errors_keys = sorted([key for key in result.keys() if key.startswith('errors_')], key=lambda key: int(key.split('_')[-1]))
 
-    print(f"TEST {dataset}" #.name()} "
+    print(f"TEST {dataset.name()} "
           f"iteration:{iteration} "
           f"loss:{result['loss']:.6f} "
           f"errors:{'|'.join(str(result[errors_key]) for errors_key in errors_keys)} "
@@ -136,7 +132,7 @@ def report(iteration, dataset, result, scheduler):
 
 def test_model(iteration, tester, scheduler):
     result = tester.test()
-    report(iteration, 'dataset', result, scheduler)
+    report(iteration, tester.dataloader, result, scheduler)
 
 
 def save_model(model, path):
@@ -148,7 +144,9 @@ def visualize(visualizer, path):
     cv2.imwrite(path, image)
 
 
-def view_step_handler(iteration, model, trn_tester, tst_tester, trn_visualizer, tst_visualizer, checkpoints_directory, visualizations_directory, scheduler):
+def view_step_handler(iteration, model, elapsed_time, iteration_count, trn_tester, tst_tester, trn_visualizer,
+                      tst_visualizer, checkpoints_directory, visualizations_directory, scheduler):
+    print(f"Iteration: {iteration}, time: {elapsed_time:.2f} s, speed: {iteration_count / elapsed_time:.2f} it/s.")
     save_model(model, get_checkpoint_path(checkpoints_directory, iteration))
 
     test_model(iteration, trn_tester, scheduler)
@@ -174,6 +172,12 @@ def main():
                        path=checkpoint_path)
     print(model)
 
+    init_directories(args.checkpoints, args.visualizations)
+    print("Directories initialized")
+
+    batch_operator = init_batch_operator(device, masking_prob=args.masking_prob)
+    print("Batch operator initialized")
+
     trn_dataset, tst_dataset = init_datasets(trn_path=args.trn_labels_file,
                                              tst_path=args.tst_labels_file,
                                              lmdb_path=args.lmdb_path,
@@ -182,16 +186,16 @@ def main():
                                              exact_width=args.exact_width,
                                              fill_width=args.fill_width,
                                              max_width=args.max_width)
-
     print("Datasets initialized")
 
-    trn_visualizer, tst_visualizer = init_visualizers(model, trn_dataset, tst_dataset, device=device)
+    trn_visualizer, tst_visualizer = init_visualizers(batch_operator, model, trn_dataset, tst_dataset)
     print("Visualizers initialized")
 
-    trn_tester, tst_tester = init_testers(model, trn_dataset, tst_dataset, device=device)
+    trn_tester, tst_tester = init_testers(batch_operator, model, trn_dataset, tst_dataset)
     print("Testers initialized")
 
-    trainer = init_training(model=model,
+    trainer = init_training(batch_operator=batch_operator,
+                            model=model,
                             dataset=trn_dataset,
                             trn_tester=trn_tester,
                             tst_tester=tst_tester,
@@ -200,9 +204,7 @@ def main():
                             learning_rate=args.learning_rate,
                             warmup_iterations=args.warmup_iterations,
                             checkpoints_directory=args.checkpoints,
-                            visualizations_directory=args.visualizations,
-                            device=device,
-                            masking_prob=args.masking_prob)
+                            visualizations_directory=args.visualizations)
     print("Trainer initialized")
 
     trainer.train(start_iteration=args.start_iteration, end_iteration=args.end_iteration, view_step=args.view_step)

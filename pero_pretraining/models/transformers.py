@@ -1,10 +1,13 @@
 import math
 import torch
-from einops import einops
-from abc import ABC, abstractmethod
-from pero_pretraining.models.helpers import create_vgg_encoder
-from numpy import random as np_random
+import einops
 import numpy as np
+
+from numpy import random as np_random
+from abc import ABC, abstractmethod
+from pero_pretraining.models.helpers import create_vgg_encoder, create_pero_vgg_layers
+
+
 class TransformerEncoder(ABC, torch.nn.Module):
     def __init__(self, height=40, patch_size=(40, 8), in_channels=3, model_dim=512, num_heads=4, num_blocks=6,
                  feedforward_dim=2048, dropout=0.0, *args, **kwargs):
@@ -20,12 +23,12 @@ class TransformerEncoder(ABC, torch.nn.Module):
         self.feedforward_dim = feedforward_dim
         self.dropout = dropout
 
-        self.position_embedding_layer = PositionalEncoding(self.model_dim)
+        self.position_model = PositionalEncoding(self.model_dim)
         self.encoder_layers = self.create_layers()        
         self.intermediate_norm = torch.nn.LayerNorm(self.model_dim, eps=1e-05)
         # create mask pattern as random noise, but generated with the same seed
-        np_random.seed(42)
-        mask_tile = np_random.rand(1, self.in_channels, self.patch_size[0], self.patch_size[1])
+        np.random.seed(42)
+        mask_tile = np.random.rand(1, self.in_channels, self.patch_size[0], self.patch_size[1])
         mask_tile = torch.tensor(mask_tile, dtype=torch.float32)
 
         self.mask_pattern = einops.repeat(mask_tile, 'n c h w -> n c h (w x)', x=1024).to("cuda")
@@ -77,7 +80,7 @@ class TransformerEncoder(ABC, torch.nn.Module):
     def _transformer(self, x):
         x = einops.rearrange(x, 'n d s -> s n d')
         x = self.intermediate_norm(x)
-        x = self.position_embedding_layer(x)
+        x = self.position_model(x)
         x = self.encoder_layers(x)
         x = einops.rearrange(x, 's n d -> n d s')
 
@@ -107,7 +110,7 @@ class VisionTransformerEncoder(TransformerEncoder):
 class VggTransformerEncoder(TransformerEncoder):
     def __init__(self, height=40, patch_size=(40, 8), in_channels=3, model_dim=512, num_heads=4, num_blocks=6,
                  feedforward_dim=2048, dropout=0.0, base_channels=64, num_conv_blocks=4, pretrained_vgg_layers=17,
-                 *args, **kwargs):
+                 use_pero_vgg=True, *args, **kwargs):
         super(VggTransformerEncoder, self).__init__(height=height, patch_size=patch_size, in_channels=in_channels,
                                                     model_dim=model_dim, num_heads=num_heads, num_blocks=num_blocks,
                                                     feedforward_dim=feedforward_dim, dropout=dropout, *args, **kwargs)
@@ -116,13 +119,16 @@ class VggTransformerEncoder(TransformerEncoder):
         self.num_conv_blocks = num_conv_blocks
         self.pretrained_vgg_layers = pretrained_vgg_layers
 
-        self.conv_layers = create_vgg_encoder(in_channels=self.in_channels,
-                                              num_conv_blocks=self.num_conv_blocks,
-                                              base_channels=self.base_channels,
-                                              patch_size=self.patch_size,
-                                              pretrained_vgg_layers=self.pretrained_vgg_layers,
-                                              dropout=self.dropout,
-                                              num_conv_layers=[2, 2, 3, 2])
+        if use_pero_vgg:
+            self.conv_layers = create_pero_vgg_layers()
+        else:
+            self.conv_layers = create_vgg_encoder(in_channels=self.in_channels,
+                                                  num_conv_blocks=self.num_conv_blocks,
+                                                  base_channels=self.base_channels,
+                                                  patch_size=self.patch_size,
+                                                  pretrained_vgg_layers=self.pretrained_vgg_layers,
+                                                  dropout=self.dropout,
+                                                  num_conv_layers=[2, 2, 3, 2])
 
         conv_layers_vertical_subsampling = 2 ** self.num_conv_blocks
         aggregation_height = self.height // conv_layers_vertical_subsampling
@@ -147,8 +153,12 @@ class PositionalEncoding(torch.nn.Module):
     """
     Source: https://pytorch.org/tutorials/beginner/transformer_tutorial.html
     """
-    def __init__(self, d_model, max_len=5000):
-        super(PositionalEncoding, self).__init__()
+    def __init__(self, d_model, max_len=1024, random_shift=True, **kwargs):
+        super().__init__()
+
+        self.d_model = d_model
+        self.max_len = max_len
+        self.random_shift = random_shift
 
         pe = torch.zeros(max_len, d_model)
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
@@ -157,9 +167,27 @@ class PositionalEncoding(torch.nn.Module):
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze(0).transpose(0, 1)
         self.register_buffer('pe', pe, persistent=False)
+        # self.pe.shape is [max_len, 1, d_model]
 
     def forward(self, x):
-        return x + self.pe[:x.size(0), :]
+        if self.random_shift and self.training:
+            seq_len, batch_size, d_model = x.size()
+            max_shift = self.pe.size(0) - seq_len
+
+            if max_shift == 0:
+                positional_encoding = self.pe[:x.size(0), :, :]
+            else:
+                offsets = torch.randint(0, max_shift, (batch_size,), device=x.device)
+                positional_encoding = torch.zeros(seq_len, batch_size, d_model, device=x.device)
+                for i, offset in enumerate(offsets):
+                    positional_encoding[:, i, :] = self.pe[offset:offset+seq_len, 0, :]
+        else:
+            positional_encoding = self.pe[:x.size(0), :, :]
+
+        return x + positional_encoding
+
+    def extra_repr(self) -> str:
+        return f"d_model={self.d_model}, max_len={self.max_len}, random_shift={self.random_shift}"
 
 
 def main():

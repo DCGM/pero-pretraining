@@ -1,13 +1,11 @@
 import torch
-import numpy as np
 
 from pero_pretraining.common.visualizer import Visualizer
-from pero_pretraining.autoencoders.batch_operator import BatchOperator
 
 
-class AutoEncodersVisualizer(BatchOperator):
-    def __init__(self, model, dataloader):
-        super(AutoEncodersVisualizer, self).__init__(model.device)
+class AutoEncodersVisualizer:
+    def __init__(self, batch_operator, model, dataloader):
+        self.batch_operator = batch_operator
 
         self.model = model
         self.dataloader = dataloader
@@ -25,7 +23,7 @@ class AutoEncodersVisualizer(BatchOperator):
 
     def _inference_step(self, batch):
         with torch.no_grad():
-            images = self.prepare_batch(batch)
+            images = self.batch_operator.prepare_batch(batch)
             output = self.model.forward(images)
 
         return output

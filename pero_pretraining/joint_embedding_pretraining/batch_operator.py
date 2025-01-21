@@ -19,10 +19,14 @@ class BatchOperator:
         return images1, images2, image_masks1, image_masks2, shift_masks1, shift_masks2
 
     def _prepare_batch_images(self, batch, key="images"):
-        images = batch[key] / 255.
-        images = torch.from_numpy(images).float().to(self.device)
+        images = torch.from_numpy(batch[key]).to(self.device).float().permute(0, 3, 1, 2) / 255.0
 
         return images
+
+    def _prepare_batch_masks(self, batch, key="image_masks"):
+        masks = torch.from_numpy(batch[key]).to(self.device)
+
+        return masks
 
     @staticmethod
     def batch_size(batch):

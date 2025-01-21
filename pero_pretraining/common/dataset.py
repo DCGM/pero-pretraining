@@ -1,8 +1,9 @@
+import os
 import cv2
+import json
 import lmdb
 import logging
 import numpy as np
-import json
 
 class Dataset:
     def __init__(self, lmdb_path, lines_path, augmentations=None, pair_images=False, max_width=2048, label_step=8, skip=0):
@@ -22,6 +23,9 @@ class Dataset:
         self.skip = skip
         self._load_data()
         self._txn = lmdb.open(self.lmdb_path, readonly=True).begin()
+
+    def name(self):
+        return os.path.basename(self.lines_path)
 
     def _load_data(self):
         images_counter = 0
@@ -80,14 +84,13 @@ class Dataset:
             else:
                 self._logger.warning(f"Labels for image {image_id} not found.")
 
-
-        if self.augmentations is not None:
-            image = self.augmentations(image=image)
-
         if self.pair_images:
             image2 = np.copy(image)
             if self.augmentations is not None:
                 image2 = self.augmentations(image=image2)
+
+        if self.augmentations is not None:
+            image = self.augmentations(image=image)
 
         item = {
             "image": image,

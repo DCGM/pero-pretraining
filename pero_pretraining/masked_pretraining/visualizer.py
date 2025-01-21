@@ -1,17 +1,16 @@
 import torch
 
 from pero_pretraining.common.visualizer import Visualizer
-from pero_pretraining.masked_pretraining.batch_operator import BatchOperator
 
 
-class MaskedVisualizer(BatchOperator):
-    def __init__(self, model, dataloader, device,  masking_prob=0.2):
-        super(MaskedVisualizer, self).__init__(device, masking_prob)
+class MaskedVisualizer:
+    def __init__(self, batch_operator, model, dataloader):
+        self.batch_operator = batch_operator
 
         self.model = model
         self.dataloader = dataloader
 
-        self._num_labels = self.model.net.head.linear.out_features
+        self._num_labels = self.model.head.linear.out_features
         self._visualizer = Visualizer()
 
     def visualize(self):
@@ -19,7 +18,7 @@ class MaskedVisualizer(BatchOperator):
         # predictions = self._inference_step(batch)
 
         with torch.no_grad():
-            images, labels, mask = self.prepare_batch(batch)
+            images, labels, mask = self.batch_operator.prepare_batch(batch)
             output = self.model.forward(images, labels, mask)
 
         predictions = torch.argmax(output['output'], dim=-1).cpu().numpy()
@@ -35,7 +34,7 @@ class MaskedVisualizer(BatchOperator):
 
     def _inference_step(self, batch):
         with torch.no_grad():
-            images, labels, mask = self.prepare_batch(batch)
+            images, labels, mask = self.batch_operator.prepare_batch(batch)
             output = self.model.forward(images, labels, mask)
 
         return output

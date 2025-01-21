@@ -20,8 +20,7 @@ class BatchOperator:
         return images
     
     def _prepare_batch_labels(self, batch):
-        labels = batch['labels']
-        labels = torch.from_numpy(labels).long().to(self.device)
+        labels = torch.from_numpy(batch['labels']).to(self.device).long()
 
         return labels
 

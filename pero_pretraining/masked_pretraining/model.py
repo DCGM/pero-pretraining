@@ -1,11 +1,11 @@
 import torch
+import einops
 
 from pero_pretraining.models.transformers import VisionTransformerEncoder, VggTransformerEncoder
 
 
 def init_backbone(backbone_definition):
     backbone_type = backbone_definition.get("type", "vit")
-    del backbone_definition["type"]
     
     if backbone_type == "vit":
         backbone = VisionTransformerEncoder(**backbone_definition)
@@ -31,14 +31,18 @@ def init_head(head_definition):
 
 
 class MaskedTransformerEncoder(torch.nn.Module):
-    def __init__(self, net, loss=None):
+    def __init__(self, backbone, head, loss=None):
         super(MaskedTransformerEncoder, self).__init__()
 
-        self.net = net
+        self.backbone = backbone
+        self.head = head
         self.loss = MaskedCrossEntropyLoss() if loss is None else loss
 
     def forward(self, x, labels=None, mask=None):
-        output = self.net(x, mask)
+        output = self.encode(x, mask)
+
+        if mask is not None and not isinstance(mask, torch.Tensor):
+            mask = torch.from_numpy(mask).to(output.device)
 
         loss = None
         if mask is not None and labels is not None:
@@ -50,6 +54,13 @@ class MaskedTransformerEncoder(torch.nn.Module):
         }
 
         return result
+
+    def encode(self, images, mask=None):
+        x = self.backbone(images, mask=mask)
+        x = einops.rearrange(x, 'n c w -> n w c')
+        output = self.head(x)
+
+        return output
 
     def save(self, path):
         torch.save(self.state_dict(), path)
@@ -79,3 +90,48 @@ class LinearHead(torch.nn.Module):
 
     def forward(self, x):
         return self.linear(x)
+
+
+def main():
+    backbone_definition = {
+        "type": "vit"
+    }
+
+    head_definition = {
+        "type": "linear"
+    }
+
+    backbone = init_backbone(backbone_definition)
+    head = init_head(head_definition)
+
+    import einops
+
+    class Net(torch.nn.Module):
+        def __init__(self, backbone, head):
+            super(Net, self).__init__()
+
+            self.backbone = backbone
+            self.head = head
+
+        def forward(self, x, mask=None):
+            x = self.backbone(x, mask)
+
+            x = einops.rearrange(x, 'n c w -> n w c')
+            x = self.head(x)
+            return x
+
+    net = Net(backbone, head)
+    model = MaskedTransformerEncoder(net)
+    print(model)
+
+    input_data = torch.rand(1, 3, 40, 1024)
+    output = model(input_data)
+
+    print(input_data.shape)
+    print(output["output"].shape)
+
+    return 0
+
+
+if __name__ == "__main__":
+    main()
