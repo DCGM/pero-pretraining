@@ -7,7 +7,7 @@ import argparse
 from functools import partial
 from safe_gpu.safe_gpu import GPUOwner
 
-from pero_pretraining.common.dataset import DatasetLMDB, Dataset
+from pero_pretraining.common.dataset import Dataset, DatasetLMDB
 from pero_pretraining.common.helpers import get_checkpoint_path, get_visualization_path
 from pero_pretraining.common.dataloader import create_dataloader, BatchCreator
 from pero_pretraining.common.lr_scheduler import WarmupSchleduler
@@ -25,9 +25,6 @@ def parse_arguments():
     parser.add_argument("--tst-labels-file", help="Path to the test labels file.")
     parser.add_argument("--lmdb-path", help="Path to the LMDB.", required=True)
     parser.add_argument("--augmentations", help="One of the predefined augmentations.", required=False, default=None)
-    parser.add_argument("--max-width", help="Limit width of examples.", type=int, default=2048)
-    parser.add_argument("--fill-width", help="Fill the maximum width with text lines (as long as they fit).", action="store_true")
-    parser.add_argument("--exact-width", help="Fill the maximum width with text lines exactly (only effective with --fill-width).", action="store_true")
 
     parser.add_argument("--batch-size", help="Batch size.", type=int, default=16)
     parser.add_argument("--learning-rate", help="Learning rate.", type=float, default=0.0002)
@@ -37,6 +34,8 @@ def parse_arguments():
     parser.add_argument("--end-iteration", help="End iteration.", type=int, default=100000)
     parser.add_argument("--max-line-width", help="Max line width.", type=int, default=2048, required=False)
     parser.add_argument("--warmup-iterations", help="Number of warmup iterations.", type=int, default=10000, required=False)
+    parser.add_argument("--fill-width", help="Fill the maximum width with text lines (as long as they fit).", action="store_true")
+    parser.add_argument("--exact-width", help="Fill the maximum width with text lines exactly (only effective with --fill-width).", action="store_true")
 
     parser.add_argument("--backbone", help="Backbone definition.", type=json.loads, default="{}")
     parser.add_argument("--head", help="Head definition.", type=json.loads, default="{}")
@@ -67,9 +66,16 @@ def init_batch_operator(device, masking_prob):
     return batch_operator
 
 
-def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations, max_width, exact_width, fill_width):
-    trn_dataset = Dataset(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=False)
-    tst_dataset = Dataset(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=False)
+def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations, max_line_width, exact_width, fill_width):
+    if "lmdb" in trn_path:
+        trn_dataset = DatasetLMDB(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=False, max_width=max_line_width)
+    else:
+        trn_dataset = Dataset(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=False, max_width=max_line_width)
+
+    if "lmdb" in tst_path:
+        tst_dataset = DatasetLMDB(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=False)
+    else:
+        tst_dataset = Dataset(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=False)
 
     batch_creator = BatchCreator()
 

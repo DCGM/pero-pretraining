@@ -7,7 +7,7 @@ import argparse
 from functools import partial
 from safe_gpu.safe_gpu import GPUOwner
 
-from pero_pretraining.common.dataset import Dataset
+from pero_pretraining.common.dataset import Dataset, DatasetLMDB
 from pero_pretraining.common.helpers import get_checkpoint_path, get_visualization_path
 from pero_pretraining.common.dataloader import create_dataloader, BatchCreator
 from pero_pretraining.common.lr_scheduler import WarmupSchleduler
@@ -72,9 +72,16 @@ def init_batch_operator(device):
     return batch_operator
 
 
-def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations):
-    trn_dataset = Dataset(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=True)
-    tst_dataset = Dataset(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=True)
+def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations, max_line_width):
+    if "lmdb" in trn_path:
+        trn_dataset = DatasetLMDB(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=True, max_width=max_line_width)
+    else:
+        trn_dataset = Dataset(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=True, max_width=max_line_width)
+
+    if "lmdb" in tst_path:
+        tst_dataset = DatasetLMDB(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=True)
+    else:
+        tst_dataset = Dataset(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=True)
 
     batch_creator = BatchCreator()
 
@@ -184,7 +191,8 @@ def main():
                                              tst_path=args.tst_images_file,
                                              lmdb_path=args.lmdb_path,
                                              batch_size=args.batch_size,
-                                             augmentations=args.augmentations)
+                                             augmentations=args.augmentations,
+                                             max_line_width=args.max_line_width)
     print("Datasets initialized")
 
     trn_visualizer, tst_visualizer = init_visualizers(batch_operator, model, trn_dataset, tst_dataset)
