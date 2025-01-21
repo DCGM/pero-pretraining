@@ -74,14 +74,30 @@ def init_batch_operator(device):
 
 def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations, max_line_width):
     if "lmdb" in trn_path:
-        trn_dataset = DatasetLMDB(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=True, max_width=max_line_width)
+        trn_dataset = DatasetLMDB(lmdb_path=lmdb_path,
+                                  lines_path=trn_path,
+                                  augmentations=augmentations,
+                                  pair_images=True,
+                                  max_width=max_line_width)
     else:
-        trn_dataset = Dataset(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=True, max_width=max_line_width)
+        trn_dataset = Dataset(lmdb_path=lmdb_path,
+                              lines_path=trn_path,
+                              augmentations=augmentations,
+                              pair_images=True,
+                              max_width=max_line_width)
 
     if "lmdb" in tst_path:
-        tst_dataset = DatasetLMDB(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=True)
+        tst_dataset = DatasetLMDB(lmdb_path=lmdb_path,
+                                  lines_path=tst_path,
+                                  augmentations=None,
+                                  pair_images=True,
+                                  max_width=max_line_width)
     else:
-        tst_dataset = Dataset(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=True)
+        tst_dataset = Dataset(lmdb_path=lmdb_path,
+                              lines_path=tst_path,
+                              augmentations=None,
+                              pair_images=True,
+                              max_width=max_line_width)
 
     batch_creator = BatchCreator()
 

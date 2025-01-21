@@ -68,19 +68,48 @@ def init_batch_operator(device, masking_prob):
 
 def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations, max_line_width, exact_width, fill_width):
     if "lmdb" in trn_path:
-        trn_dataset = DatasetLMDB(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=False, max_width=max_line_width)
+        trn_dataset = DatasetLMDB(lmdb_path=lmdb_path,
+                                  lines_path=trn_path,
+                                  augmentations=augmentations,
+                                  pair_images=False,
+                                  max_width=max_line_width,
+                                  exact_width=exact_width,
+                                  fill_width=fill_width)
     else:
-        trn_dataset = Dataset(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=False, max_width=max_line_width)
+        trn_dataset = Dataset(lmdb_path=lmdb_path,
+                              lines_path=trn_path,
+                              augmentations=augmentations,
+                              pair_images=False,
+                              max_width=max_line_width)
 
     if "lmdb" in tst_path:
-        tst_dataset = DatasetLMDB(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=False)
+        tst_dataset = DatasetLMDB(lmdb_path=lmdb_path,
+                                  lines_path=tst_path,
+                                  augmentations=None,
+                                  pair_images=False,
+                                  max_width=max_line_width,
+                                  exact_width=exact_width,
+                                  fill_width=fill_width)
     else:
-        tst_dataset = Dataset(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=False)
+        tst_dataset = Dataset(lmdb_path=lmdb_path,
+                              lines_path=tst_path,
+                              augmentations=None,
+                              pair_images=False,
+                              max_width=max_line_width)
 
     batch_creator = BatchCreator()
 
-    trn_dataloader = create_dataloader(trn_dataset, batch_creator=batch_creator, batch_size=batch_size, shuffle=True, num_workers=4)
-    tst_dataloader = create_dataloader(tst_dataset, batch_creator=batch_creator, batch_size=batch_size, shuffle=False, num_workers=4)
+    trn_dataloader = create_dataloader(trn_dataset,
+                                       batch_creator=batch_creator,
+                                       batch_size=batch_size,
+                                       shuffle=True,
+                                       num_workers=4)
+
+    tst_dataloader = create_dataloader(tst_dataset,
+                                       batch_creator=batch_creator,
+                                       batch_size=batch_size,
+                                       shuffle=False,
+                                       num_workers=4)
 
     trn_dataloader.name = trn_dataset.name
     tst_dataloader.name = tst_dataset.name
@@ -127,7 +156,8 @@ def init_directories(*directories):
 
 
 def report(iteration, dataset, result, scheduler):
-    errors_keys = sorted([key for key in result.keys() if key.startswith('errors_')], key=lambda key: int(key.split('_')[-1]))
+    errors_keys = sorted([key for key in result.keys() if key.startswith('errors_')],
+                         key=lambda key: int(key.split('_')[-1]))
 
     print(f"TEST {dataset.name()} "
           f"iteration:{iteration} "
