@@ -3,12 +3,9 @@ import numpy as np
 from collections import defaultdict
 
 
-from pero_pretraining.masked_pretraining.batch_operator import BatchOperator
-
-
-class Tester(BatchOperator):
-    def __init__(self, model, dataloader, masking_prob=0.2, max_lines=None, measured_errors=(1, 3, 10)):
-        super(Tester, self).__init__(model.device, masking_prob)
+class Tester:
+    def __init__(self, batch_operator, model, dataloader, max_lines=None, measured_errors=(1, 3, 10)):
+        self.batch_operator = batch_operator
 
         self.model = model
         self.dataloader = dataloader
@@ -37,7 +34,7 @@ class Tester(BatchOperator):
 
                 self._update_errors(errors, result, batch)
 
-                num_lines += self.batch_size(batch)
+                num_lines += self.batch_operator.batch_size(batch)
                 num_batches += 1
 
                 if self.max_lines is not None and num_lines > self.max_lines:
@@ -54,20 +51,28 @@ class Tester(BatchOperator):
         }
 
         return output
-    
+
     def test_step(self, batch):
-        images, labels, mask = self.prepare_batch(batch)
+        images, labels, mask = self.batch_operator.prepare_batch(batch)
         output = self.model.forward(images, labels, mask)
+
+        batch['mask'] = mask
 
         return output
 
     def _update_errors(self, errors, result, batch):
-        output = result['output']
-        labels = batch['labels']
+        output = result['output'].cpu().numpy()
         mask = batch['mask']
+        labels = batch['labels']
 
-        masked_output = output[mask == 1]
-        masked_labels = labels[mask == 1]
+        if type(mask) == torch.Tensor:
+            mask = mask.cpu().numpy()
+
+        if type(labels) == torch.Tensor:
+            labels = labels.cpu().numpy()
+
+        masked_output = output[mask == 1]  # .cpu().numpy()
+        masked_labels = labels[mask == 1]  # .cpu().numpy()
 
         for i, measured_error in enumerate(self.measured_errors):
             masked_predictions = np.argmax(masked_output, axis=1) if measured_error == 1 else self._topk(masked_output, measured_error)

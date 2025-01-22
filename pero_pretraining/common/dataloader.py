@@ -12,7 +12,10 @@ def create_dataloader(dataset, batch_creator=None, batch_size=16, shuffle=False,
                              shuffle=shuffle,
                              num_workers=num_workers,
                              persistent_workers=persistent_workers if num_workers > 0 else False,
-                             collate_fn=batch_creator.create_batch)
+                             collate_fn=batch_creator.create_batch,
+                             pin_memory=True,
+                             drop_last=True
+                             )
     return data_loader
 
 

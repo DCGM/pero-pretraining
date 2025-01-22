@@ -7,12 +7,13 @@ class Visualizer:
         self.subsampling_factor = subsampling_factor
 
     def visualize(self, images, images2=None, image_masks=None, image_masks2=None, shift_masks=None, shift_masks2=None,
-                  labels=None, predicted_labels=None, num_labels=None, original_images=None, original_images2=None):
+                  labels=None, predicted_labels=None, mask=None, num_labels=None, original_images=None, original_images2=None):
         image = self.visualize_column(images=images,
                                       image_masks=image_masks,
                                       shift_masks=shift_masks,
                                       labels=labels,
                                       predictions=predicted_labels,
+                                      mask=mask,
                                       num_labels=num_labels,)
 
         separator = np.ones((image.shape[0], 10, 3), dtype=np.uint8) * 255
@@ -48,9 +49,12 @@ class Visualizer:
         return image
 
     def visualize_column(self, images, predictions=None, labels=None, num_labels=None, image_masks=None, shift_masks=None,
-                         line_padding=0):
+                         line_padding=0, mask=None):
         lines = []
         for i, line_image in enumerate(images):
+            if line_image.dtype == np.float32:
+                line_image = (line_image * 255).astype(np.uint8)
+
             line = [line_image]
 
             if line_padding > 0:
@@ -79,9 +83,27 @@ class Visualizer:
                 if predictions is not None:
                     line.append(self.visualize_annotation(line_image, predictions[i], num_labels))
 
-                    correct_labels = np.equal(labels[i], predictions[i]).astype(np.uint8)
-                    line.append(self.visualize_annotation(line_image, correct_labels, 2))
+                    colors = {
+                        0: [0, 0, 0],   # mask == 0
+                        1: [0, 255, 0], # mask == 1 & prediction == label
+                        2: [0, 0, 255], # mask == 1 & prediction != label
+                    }
 
+                    labels_predictions_mask = []
+                    for j in range(len(labels[i])):
+                        if mask is not None and mask[i][j] == 0:
+                            labels_predictions_mask.append(0)
+                        elif predictions[i][j] == labels[i][j]:
+                            labels_predictions_mask.append(1)
+                        else:
+                            labels_predictions_mask.append(2)
+
+                    labels_predictions_mask = np.array(labels_predictions_mask)
+
+                    line.append(self.visualize_annotation(line_image, labels_predictions_mask, colors_dict=colors))
+
+            # print("V:column")
+            # import IPython; IPython.embed()
             lines.append(np.concatenate(line, axis=0))
 
         image = np.concatenate(lines, axis=0)
@@ -98,7 +120,11 @@ class Visualizer:
         return annotation_image
 
     def label_to_color(self, label, num_labels):
-        label_color_number = int((256**3 - 1) * label / (num_labels - 1))
+        try:
+            label_color_number = int((256**3 - 1) * label / (num_labels - 1))
+        except:
+            import IPython; IPython.embed(); exit(1)
+
         label_color_number = max(0, min(label_color_number, 256**3 - 1))
 
         binary = bin(label_color_number)[2:]

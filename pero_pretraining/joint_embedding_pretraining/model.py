@@ -1,4 +1,5 @@
 import torch
+import einops
 
 from pero_pretraining.models.transformers import VisionTransformerEncoder, VggTransformerEncoder
 
@@ -30,15 +31,16 @@ def init_head(head_definition):
 
 
 class JointEmbeddingTransformerEncoder(torch.nn.Module):
-    def __init__(self, net, loss):
+    def __init__(self, backbone, head, loss):
         super(JointEmbeddingTransformerEncoder, self).__init__()
 
-        self.net = net
+        self.backbone = backbone
+        self.head = head
         self.loss = loss
 
     def forward(self, images1, images2, image_masks1, image_masks2, shift_masks1, shift_masks2):
-        output1 = self.net(images1, mask=None)
-        output2 = self.net(images2, mask=None)
+        output1 = self.encode(images1)
+        output2 = self.encode(images2)
 
         loss = self.loss(output1, output2, image_masks1, image_masks2, shift_masks1, shift_masks2)
 
@@ -49,6 +51,13 @@ class JointEmbeddingTransformerEncoder(torch.nn.Module):
         }
 
         return result
+
+    def encode(self, images):
+        x = self.backbone(images, mask=None)
+        x = einops.rearrange(x, 'n c w -> n w c')
+        output = self.head(x)
+
+        return output
 
     def save(self, path):
         torch.save(self.state_dict(), path)

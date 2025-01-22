@@ -15,14 +15,12 @@ class BatchOperator:
         return images, labels, mask
 
     def _prepare_batch_images(self, batch):
-        images = batch['images'] / 255.
-        images = torch.from_numpy(images).float().to(self.device)
+        images = torch.from_numpy(batch['images']).to(self.device).float().permute(0, 3, 1, 2) / 255.0
 
         return images
     
     def _prepare_batch_labels(self, batch):
-        labels = batch['labels']
-        labels = torch.from_numpy(labels).long().to(self.device)
+        labels = torch.from_numpy(batch['labels']).to(self.device).long()
 
         return labels
 

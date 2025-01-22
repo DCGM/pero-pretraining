@@ -24,8 +24,8 @@ def init_model(model_definition, checkpoint_path, device):
     return model
 
 
-def init_dataset(lmdb_path, lines_path, batch_size):
-    dataset = Dataset(lmdb_path=lmdb_path, lines_path=lines_path, augmentations=None, pair_images=False)
+def init_dataset(lmdb_path, lines_path, batch_size, skip):
+    dataset = Dataset(lmdb_path=lmdb_path, lines_path=lines_path, augmentations=None, pair_images=False, skip=skip)
     batch_creator = BatchCreator()
     dataloader = create_dataloader(dataset, batch_creator=batch_creator, batch_size=batch_size, shuffle=False)
 

@@ -1,13 +1,9 @@
 import torch
-import numpy as np
-from collections import defaultdict
-
-from pero_pretraining.joint_embedding_pretraining.batch_operator import BatchOperator
 
 
-class Tester(BatchOperator):
-    def __init__(self, model, dataloader, max_lines=None):
-        super(Tester, self).__init__(model.device)
+class Tester:
+    def __init__(self, batch_operator, model, dataloader, max_lines=None):
+        self.batch_operator = batch_operator
 
         self.model = model
         self.dataloader = dataloader
@@ -32,7 +28,7 @@ class Tester(BatchOperator):
                 result = self.test_step(batch)
                 total_loss += result['loss']
 
-                num_lines += self.batch_size(batch)
+                num_lines += self.batch_operator.batch_size(batch)
                 num_batches += 1
 
                 if self.max_lines is not None and num_lines > self.max_lines:
@@ -49,7 +45,7 @@ class Tester(BatchOperator):
         return output
 
     def test_step(self, batch):
-        images1, images2, image_masks1, image_masks2, shift_masks1, shift_masks2  = self.prepare_batch(batch)
+        images1, images2, image_masks1, image_masks2, shift_masks1, shift_masks2  = self.batch_operator.prepare_batch(batch)
         output = self.model.forward(images1, images2, image_masks1, image_masks2, shift_masks1, shift_masks2)
 
         return output

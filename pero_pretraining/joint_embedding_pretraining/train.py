@@ -1,11 +1,13 @@
+import os
 import cv2
+import json
 import torch
 import argparse
 
 from functools import partial
 from safe_gpu.safe_gpu import GPUOwner
 
-from pero_pretraining.common.dataset import Dataset
+from pero_pretraining.common.dataset import Dataset, DatasetLMDB
 from pero_pretraining.common.helpers import get_checkpoint_path, get_visualization_path
 from pero_pretraining.common.dataloader import create_dataloader, BatchCreator
 from pero_pretraining.common.lr_scheduler import WarmupSchleduler
@@ -15,6 +17,7 @@ from pero_pretraining.joint_embedding_pretraining.losses import VICRegLoss, NTXe
 from pero_pretraining.joint_embedding_pretraining.tester import Tester
 from pero_pretraining.joint_embedding_pretraining.trainer import Trainer
 from pero_pretraining.joint_embedding_pretraining.visualizer import JointEmbeddingVisualizer as Visualizer
+from pero_pretraining.joint_embedding_pretraining.batch_operator import BatchOperator
 
 
 def parse_arguments():
@@ -26,15 +29,14 @@ def parse_arguments():
 
     parser.add_argument("--batch-size", help="Batch size.", type=int)
     parser.add_argument("--learning-rate", help="Learning rate.", type=float)
-    parser.add_argument("--masking-prob", help="Masking probability.", type=float)
     parser.add_argument("--dropout", help="Dropout.", type=float, default=0.0)
     parser.add_argument("--start-iteration", help="Start iteration.", type=int)
     parser.add_argument("--end-iteration", help="End iteration.", type=int)
     parser.add_argument("--max-line-width", help="Max line width.", type=int, default=2048, required=False)
     parser.add_argument("--warmup-iterations", help="Number of warmup iterations.", type=int, default=10000, required=False)
 
-    parser.add_argument("--backbone", help="Backbone definition.", type=str, default="{}")
-    parser.add_argument("--head", help="Head definition.", type=str, default="{}")
+    parser.add_argument("--backbone", help="Backbone definition.", type=json.loads, default="{}")
+    parser.add_argument("--head", help="Head definition.", type=json.loads, default="{}")
     parser.add_argument("--loss-type", help="Type of training loss.", type=str, default="vicreg", choices=["vicreg", "ntxent"])
 
     parser.add_argument("--view-step", help="Number of iterations between testing.", type=int)
@@ -48,7 +50,6 @@ def parse_arguments():
 def init_model(device, backbone_definition, head_definition, loss_type="vicreg", path=None):
     backbone = init_backbone(backbone_definition)
     head = init_head(head_definition)
-    net = torch.nn.Sequential(backbone, head)
 
     if loss_type == "vicreg":
         loss = VICRegLoss()
@@ -57,7 +58,7 @@ def init_model(device, backbone_definition, head_definition, loss_type="vicreg",
     else:
         raise ValueError(f"Unknown loss type: {loss_type}")
 
-    model = JointEmbeddingTransformerEncoder(net, loss)
+    model = JointEmbeddingTransformerEncoder(backbone, head, loss)
     model.to(device)
 
     if path is not None:
@@ -66,37 +67,69 @@ def init_model(device, backbone_definition, head_definition, loss_type="vicreg",
     return model
 
 
-def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations):
-    trn_dataset = Dataset(lmdb_path=lmdb_path, lines_path=trn_path, augmentations=augmentations, pair_images=False)
-    tst_dataset = Dataset(lmdb_path=lmdb_path, lines_path=tst_path, augmentations=None, pair_images=False)
+def init_batch_operator(device):
+    batch_operator = BatchOperator(device=device)
+    return batch_operator
+
+
+def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations, max_line_width):
+    if "lmdb" in trn_path:
+        trn_dataset = DatasetLMDB(lmdb_path=lmdb_path,
+                                  lines_path=trn_path,
+                                  augmentations=augmentations,
+                                  pair_images=True,
+                                  max_width=max_line_width)
+    else:
+        trn_dataset = Dataset(lmdb_path=lmdb_path,
+                              lines_path=trn_path,
+                              augmentations=augmentations,
+                              pair_images=True,
+                              max_width=max_line_width)
+
+    if "lmdb" in tst_path:
+        tst_dataset = DatasetLMDB(lmdb_path=lmdb_path,
+                                  lines_path=tst_path,
+                                  augmentations=None,
+                                  pair_images=True,
+                                  max_width=max_line_width)
+    else:
+        tst_dataset = Dataset(lmdb_path=lmdb_path,
+                              lines_path=tst_path,
+                              augmentations=None,
+                              pair_images=True,
+                              max_width=max_line_width)
 
     batch_creator = BatchCreator()
 
     trn_dataloader = create_dataloader(trn_dataset, batch_creator=batch_creator, batch_size=batch_size, shuffle=True)
     tst_dataloader = create_dataloader(tst_dataset, batch_creator=batch_creator, batch_size=batch_size, shuffle=False)
 
+    trn_dataloader.name = trn_dataset.name
+    tst_dataloader.name = tst_dataset.name
+
     return trn_dataloader, tst_dataloader
 
 
-def init_visualizers(model, trn_dataloader, tst_dataloader):
-    trn_visualizer = Visualizer(model, trn_dataloader)
-    tst_visualizer = Visualizer(model, tst_dataloader)
+def init_visualizers(batch_operator, model, trn_dataloader, tst_dataloader):
+    trn_visualizer = Visualizer(batch_operator, model, trn_dataloader)
+    tst_visualizer = Visualizer(batch_operator, model, tst_dataloader)
 
     return trn_visualizer, tst_visualizer
 
 
-def init_testers(model, trn_dataloader, tst_dataloader):
-    trn_tester = Tester(model, trn_dataloader, max_lines=1000)
-    tst_tester = Tester(model, tst_dataloader)
+def init_testers(batch_operator, model, trn_dataloader, tst_dataloader):
+    trn_tester = Tester(batch_operator, model, trn_dataloader, max_lines=1000)
+    tst_tester = Tester(batch_operator, model, tst_dataloader)
 
     return trn_tester, tst_tester
 
 
-def init_training(model, dataset, trn_tester, tst_tester, trn_visualizer, tst_visualizer, learning_rate, warmup_iterations, checkpoints_directory, visualizations_directory):
+def init_training(batch_operator, model, dataset, trn_tester, tst_tester, trn_visualizer, tst_visualizer, learning_rate,
+                  warmup_iterations, checkpoints_directory, visualizations_directory):
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = WarmupSchleduler(optimizer, learning_rate, warmup_iterations, 1)
 
-    trainer = Trainer(model, dataset, optimizer, scheduler)
+    trainer = Trainer(batch_operator, model, dataset, optimizer, scheduler)
     trainer.on_view_step = partial(view_step_handler,
                                    trn_tester=trn_tester,
                                    tst_tester=tst_tester,
@@ -109,8 +142,13 @@ def init_training(model, dataset, trn_tester, tst_tester, trn_visualizer, tst_vi
     return trainer
 
 
-def report(iteration, dataset, result, scheduler):
+def init_directories(*directories):
+    for directory in directories:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
 
+
+def report(iteration, dataset, result, scheduler):
     print(f"TEST {dataset.name()} "
           f"iteration:{iteration} "
           f"loss:{result['loss']:.6f} "
@@ -119,7 +157,7 @@ def report(iteration, dataset, result, scheduler):
 
 def test_model(iteration, tester, scheduler):
     result = tester.test()
-    report(iteration, tester.dataset, result, scheduler)
+    report(iteration, tester.dataloader, result, scheduler)
 
 
 def save_model(model, path):
@@ -131,7 +169,8 @@ def visualize(visualizer, path):
     cv2.imwrite(path, image)
 
 
-def view_step_handler(iteration, model, trn_tester, tst_tester, trn_visualizer, tst_visualizer, checkpoints_directory, visualizations_directory, scheduler):
+def view_step_handler(iteration, model, elapsed_time, iteration_count, trn_tester, tst_tester, trn_visualizer, tst_visualizer, checkpoints_directory, visualizations_directory, scheduler):
+    print(f"Iteration: {iteration}, time: {elapsed_time:.2f} s, speed: {iteration_count / elapsed_time:.2f} it/s.")
     save_model(model, get_checkpoint_path(checkpoints_directory, iteration))
 
     test_model(iteration, trn_tester, scheduler)
@@ -158,20 +197,28 @@ def main():
                        path=checkpoint_path)
     print(model)
 
-    trn_dataset, tst_dataset = init_datasets(trn_path=args.trn_path,
-                                             tst_path=args.tst_path,
+    init_directories(args.checkpoints, args.visualizations)
+    print("Directories initialized")
+
+    batch_operator = init_batch_operator(device)
+    print("Batch operator initialized")
+
+    trn_dataset, tst_dataset = init_datasets(trn_path=args.trn_images_file,
+                                             tst_path=args.tst_images_file,
                                              lmdb_path=args.lmdb_path,
                                              batch_size=args.batch_size,
-                                             augmentations=args.augmentations)
+                                             augmentations=args.augmentations,
+                                             max_line_width=args.max_line_width)
     print("Datasets initialized")
 
-    trn_visualizer, tst_visualizer = init_visualizers(model, trn_dataset, tst_dataset)
+    trn_visualizer, tst_visualizer = init_visualizers(batch_operator, model, trn_dataset, tst_dataset)
     print("Visualizers initialized")
 
-    trn_tester, tst_tester = init_testers(model, trn_dataset, tst_dataset)
+    trn_tester, tst_tester = init_testers(batch_operator, model, trn_dataset, tst_dataset)
     print("Testers initialized")
 
-    trainer = init_training(model=model,
+    trainer = init_training(batch_operator=batch_operator,
+                            model=model,
                             dataset=trn_dataset,
                             trn_tester=trn_tester,
                             tst_tester=tst_tester,

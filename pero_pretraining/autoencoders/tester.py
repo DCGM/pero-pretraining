@@ -1,11 +1,9 @@
 import torch
 
-from pero_pretraining.autoencoders.batch_operator import BatchOperator
 
-
-class Tester(BatchOperator):
-    def __init__(self, model, dataloader, max_lines=None):
-        super(Tester, self).__init__(model.device)
+class Tester:
+    def __init__(self, batch_operator, model, dataloader, max_lines=None):
+        self.batch_operator = batch_operator
 
         self.model = model
         self.dataloader = dataloader
@@ -30,7 +28,7 @@ class Tester(BatchOperator):
                 result = self.test_step(batch)
                 total_loss += result['loss']
 
-                num_lines += self.batch_size(batch)
+                num_lines += self.batch_operator.batch_size(batch)
                 num_batches += 1
 
                 if self.max_lines is not None and num_lines > self.max_lines:
@@ -47,7 +45,7 @@ class Tester(BatchOperator):
         return output
 
     def test_step(self, batch):
-        images = self.prepare_batch(batch)
+        images = self.batch_operator.prepare_batch(batch)
         output = self.model.forward(images)
 
         return output

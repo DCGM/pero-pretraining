@@ -94,35 +94,8 @@ def create_decoder_block(in_channels, out_channels, num_conv_layers, dropout, up
     return layers
 
 
-def create_pero_vgg_encoder():
+def create_pero_vgg_layers():
     from torch.nn import Conv2d, ReLU, MaxPool2d, Dropout, LeakyReLU, BatchNorm2d
-
-    class EncoderLayers(torch.nn.Module):
-        def __init__(self, layers):
-            super(EncoderLayers, self).__init__()
-            self.blocks_2d = layers
-
-        def forward(self, x):
-            return self.blocks_2d(x)
-
-    class EncoderFrontend(torch.nn.Module):
-        def __init__(self, blocks_2d, aggregation_conv):
-            super(EncoderFrontend, self).__init__()
-            self.blocks_2d = blocks_2d
-            self.aggregation_conv = aggregation_conv
-
-        def forward(self, x):
-            x = self.blocks_2d(x)
-            x = self.aggregation_conv(x)
-            return x
-
-    class Encoder(torch.nn.Module):
-        def __init__(self, encoder_frontend):
-            super(Encoder, self).__init__()
-            self.encoder_frontend = encoder_frontend
-
-        def forward(self, x):
-            return self.encoder_frontend(x)
 
     layers = torch.nn.Sequential(*[
         Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
@@ -154,8 +127,43 @@ def create_pero_vgg_encoder():
         BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
         Dropout(p=0.0, inplace=True)])
 
+    return layers
+
+
+def create_pero_vgg_encoder(out_channels=768, aggregation_height=3):
+    from torch.nn import Conv2d, LeakyReLU
+
+    class EncoderLayers(torch.nn.Module):
+        def __init__(self, layers):
+            super(EncoderLayers, self).__init__()
+            self.blocks_2d = layers
+
+        def forward(self, x):
+            return self.blocks_2d(x)
+
+    class EncoderFrontend(torch.nn.Module):
+        def __init__(self, blocks_2d, aggregation_conv):
+            super(EncoderFrontend, self).__init__()
+            self.blocks_2d = blocks_2d
+            self.aggregation_conv = aggregation_conv
+
+        def forward(self, x):
+            x = self.blocks_2d(x)
+            x = self.aggregation_conv(x)
+            return x
+
+    class Encoder(torch.nn.Module):
+        def __init__(self, encoder_frontend):
+            super(Encoder, self).__init__()
+            self.encoder_frontend = encoder_frontend
+
+        def forward(self, x):
+            return self.encoder_frontend(x)
+
+    layers = create_pero_vgg_layers()
+
     aggregation_conv = torch.nn.Sequential(*[
-        Conv2d(512, 768, kernel_size=(3, 1), stride=(1, 1)),
+        Conv2d(512, out_channels, kernel_size=(aggregation_height, 1), stride=(1, 1)),
         LeakyReLU(negative_slope=0.01)])
 
     blocks_2d = EncoderLayers(layers)
