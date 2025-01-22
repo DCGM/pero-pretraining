@@ -123,7 +123,7 @@ def main():
     ngrams = load_ngrams(args.ngrams)
     print("N-grams loaded.")
 
-    crops = search_ngrams(labels, ngrams, lmdb.open(args.lmdb, readonly=True).begin(), args.subsampling,
+    crops = search_ngrams(labels, ngrams, lmdb.open(args.lmdb, readonly=True, lock=False).begin(), args.subsampling,
                           max_samples=args.max_samples)
     print("Crops gathered.")
 
