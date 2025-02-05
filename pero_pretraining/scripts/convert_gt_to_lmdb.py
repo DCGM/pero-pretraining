@@ -19,8 +19,11 @@ def parse_arguments():
 def main():
     args = parse_arguments()
 
-    env = lmdb.open(args.output, map_size=1000000000000)
+    env = lmdb.open(args.output, map_size=1000_000_000_000)
     txn = env.begin(write=True)
+    
+    offset = txn.stat()['entries']
+    print("Starting from offset", offset)
 
     with open(args.input, "r") as f:
         for i, line in enumerate(f):
@@ -30,7 +33,7 @@ def main():
             if not labels:
                 print("Warning: No labels for ", image_path)
                 continue
-            txn.put(f"{i:10d}".encode(), json.dumps({"image": image_path, "labels": labels}).encode())
+            txn.put(f"{offset+i:10d}".encode(), json.dumps({"image": image_path, "labels": labels}).encode())
             if i % 10000 == 0:
                 print(f"Processed {i} lines")
     txn.commit()
