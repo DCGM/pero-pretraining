@@ -120,7 +120,7 @@ class VggTransformerEncoder(TransformerEncoder):
         self.pretrained_vgg_layers = pretrained_vgg_layers
 
         if use_pero_vgg:
-            self.conv_layers = create_pero_vgg_layers()
+            self.conv_layers = create_pero_vgg_layers(dropout=self.dropout)
         else:
             self.conv_layers = create_vgg_encoder(in_channels=self.in_channels,
                                                   num_conv_blocks=self.num_conv_blocks,

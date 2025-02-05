@@ -94,7 +94,7 @@ def create_decoder_block(in_channels, out_channels, num_conv_layers, dropout, up
     return layers
 
 
-def create_pero_vgg_layers():
+def create_pero_vgg_layers(dropout=0.0):
     from torch.nn import Conv2d, ReLU, MaxPool2d, Dropout, LeakyReLU, BatchNorm2d
 
     layers = torch.nn.Sequential(*[
@@ -103,13 +103,13 @@ def create_pero_vgg_layers():
         Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
         ReLU(inplace=True),
         MaxPool2d(kernel_size=(2, 2), stride=(2, 2), padding=0, dilation=1, ceil_mode=False),
-        Dropout(p=0.0, inplace=True),
+        Dropout(p=dropout, inplace=True),
         Conv2d(64, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
         ReLU(inplace=True),
         Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
         ReLU(inplace=True),
         MaxPool2d(kernel_size=(2, 2), stride=(2, 2), padding=0, dilation=1, ceil_mode=False),
-        Dropout(p=0.0, inplace=True),
+        Dropout(p=dropout, inplace=True),
         Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
         ReLU(inplace=True),
         Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
@@ -117,7 +117,7 @@ def create_pero_vgg_layers():
         Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
         ReLU(inplace=True),
         MaxPool2d(kernel_size=(2, 2), stride=(2, 2), padding=0, dilation=1, ceil_mode=False),
-        Dropout(p=0.0, inplace=True),
+        Dropout(p=dropout, inplace=True),
         torch.nn.Sequential(*[
             Conv2d(256, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
             LeakyReLU(negative_slope=0.01),
@@ -125,7 +125,7 @@ def create_pero_vgg_layers():
             LeakyReLU(negative_slope=0.01),
             MaxPool2d(kernel_size=(2, 1), stride=(2, 1), padding=0, dilation=1, ceil_mode=False)]),
         BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
-        Dropout(p=0.0, inplace=True)])
+        Dropout(p=dropout, inplace=True)])
 
     return layers
 
