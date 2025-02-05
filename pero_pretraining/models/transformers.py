@@ -10,7 +10,7 @@ from pero_pretraining.models.helpers import create_vgg_encoder, create_pero_vgg_
 
 class TransformerEncoder(ABC, torch.nn.Module):
     def __init__(self, height=40, patch_size=(40, 8), in_channels=3, model_dim=512, num_heads=4, num_blocks=6,
-                 feedforward_dim=2048, dropout=0.0, *args, **kwargs):
+                 feedforward_dim=2048, dropout=0.0, max_len=4096, *args, **kwargs):
         super(TransformerEncoder, self).__init__()
 
         self.height = height
@@ -22,8 +22,9 @@ class TransformerEncoder(ABC, torch.nn.Module):
         self.num_blocks = num_blocks
         self.feedforward_dim = feedforward_dim
         self.dropout = dropout
+        self.max_len = max_len
 
-        self.position_model = PositionalEncoding(self.model_dim)
+        self.position_model = PositionalEncoding(self.model_dim, self.max_len)
         self.encoder_layers = self.create_layers()        
         self.intermediate_norm = torch.nn.LayerNorm(self.model_dim, eps=1e-05)
         # create mask pattern as random noise, but generated with the same seed
