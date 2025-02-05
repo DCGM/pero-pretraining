@@ -126,6 +126,9 @@ class DatasetLMDB:
 
         self._eol_patch = None
 
+    def name(self):
+        return os.path.basename(self.lines_path)
+
     def _load_image_and_labels(self, image_id):
         lmdb_id = f"{image_id:10d}"
         image_info = self._txn_labels.get(lmdb_id.encode())

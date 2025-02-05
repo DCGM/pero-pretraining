@@ -221,7 +221,7 @@ def main():
                                              augmentations=args.augmentations,
                                              exact_width=args.exact_width,
                                              fill_width=args.fill_width,
-                                             max_width=args.max_width)
+                                             max_line_width=args.max_line_width)
     print("Datasets initialized")
 
     trn_visualizer, tst_visualizer = init_visualizers(batch_operator, model, trn_dataset, tst_dataset)
