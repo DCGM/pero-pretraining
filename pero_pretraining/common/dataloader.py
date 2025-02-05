@@ -3,7 +3,7 @@ from typing import List, Dict
 from torch.utils.data import DataLoader
 
 
-def create_dataloader(dataset, batch_creator=None, batch_size=16, shuffle=False, num_workers=4, persistent_workers=True):
+def create_dataloader(dataset, batch_creator=None, batch_size=16, shuffle=False, num_workers=4, persistent_workers=True, drop_last=True):
     if batch_creator is None:
         batch_creator = BatchCreator()
 
@@ -14,7 +14,7 @@ def create_dataloader(dataset, batch_creator=None, batch_size=16, shuffle=False,
                              persistent_workers=persistent_workers if num_workers > 0 else False,
                              collate_fn=batch_creator.create_batch,
                              pin_memory=True,
-                             drop_last=True
+                             drop_last=drop_last
                              )
     return data_loader
 
