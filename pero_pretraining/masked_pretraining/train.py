@@ -46,6 +46,7 @@ def parse_arguments():
     parser.add_argument('--bfloat16', help="Use bfloat16.", action="store_true")
 
     args = parser.parse_args()
+    print(args)
     return args
 
 
