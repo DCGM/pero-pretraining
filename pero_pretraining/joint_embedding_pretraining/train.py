@@ -29,7 +29,6 @@ def parse_arguments():
 
     parser.add_argument("--batch-size", help="Batch size.", type=int)
     parser.add_argument("--learning-rate", help="Learning rate.", type=float)
-    parser.add_argument("--dropout", help="Dropout.", type=float, default=0.0)
     parser.add_argument("--start-iteration", help="Start iteration.", type=int)
     parser.add_argument("--end-iteration", help="End iteration.", type=int)
     parser.add_argument("--max-line-width", help="Max line width.", type=int, default=2048, required=False)
