@@ -43,6 +43,7 @@ def parse_arguments():
     parser.add_argument("--view-step", help="Number of iterations between testing.", type=int, default=500)
     parser.add_argument("--checkpoints", help="Path to a directory where checkpoints are saved.", default=None)
     parser.add_argument("--visualizations", help="Path to a directory where visualizations are saved.", default=None)
+    parser.add_argument('--bfloat16', help="Use bfloat16.", action="store_true")
 
     args = parser.parse_args()
     return args
@@ -117,26 +118,26 @@ def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations, max_
     return trn_dataloader, tst_dataloader
 
 
-def init_visualizers(batch_operator, model, trn_dataloader, tst_dataloader):
-    trn_visualizer = Visualizer(batch_operator, model, trn_dataloader)
-    tst_visualizer = Visualizer(batch_operator, model, tst_dataloader)
+def init_visualizers(batch_operator, model, trn_dataloader, tst_dataloader, bfloat16=False):
+    trn_visualizer = Visualizer(batch_operator, model, trn_dataloader, bfloat16=bfloat16)
+    tst_visualizer = Visualizer(batch_operator, model, tst_dataloader, bfloat16=bfloat16)
 
     return trn_visualizer, tst_visualizer
 
 
-def init_testers(batch_operator, model, trn_dataloader, tst_dataloader):
-    trn_tester = Tester(batch_operator, model, trn_dataloader, max_lines=1000)
-    tst_tester = Tester(batch_operator, model, tst_dataloader)
+def init_testers(batch_operator, model, trn_dataloader, tst_dataloader, bfloat16):
+    trn_tester = Tester(batch_operator, model, trn_dataloader, max_lines=1000, bfloat16=bfloat16)
+    tst_tester = Tester(batch_operator, model, tst_dataloader, bfloat16=bfloat16)
 
     return trn_tester, tst_tester
 
 
 def init_training(batch_operator, model, dataset, trn_tester, tst_tester, trn_visualizer, tst_visualizer, learning_rate,
-                  warmup_iterations, checkpoints_directory, visualizations_directory):
+                  warmup_iterations, checkpoints_directory, visualizations_directory, bfloat16):
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = WarmupSchleduler(optimizer, learning_rate, warmup_iterations, 1)
 
-    trainer = Trainer(batch_operator, model, dataset, optimizer, scheduler)
+    trainer = Trainer(batch_operator, model, dataset, optimizer, scheduler, bfloat16=bfloat16)
     trainer.on_view_step = partial(view_step_handler, 
                                    trn_tester=trn_tester, 
                                    tst_tester=tst_tester, 
@@ -224,10 +225,10 @@ def main():
                                              max_line_width=args.max_line_width)
     print("Datasets initialized")
 
-    trn_visualizer, tst_visualizer = init_visualizers(batch_operator, model, trn_dataset, tst_dataset)
+    trn_visualizer, tst_visualizer = init_visualizers(batch_operator, model, trn_dataset, tst_dataset, bfloat16=args.bfloat16)
     print("Visualizers initialized")
 
-    trn_tester, tst_tester = init_testers(batch_operator, model, trn_dataset, tst_dataset)
+    trn_tester, tst_tester = init_testers(batch_operator, model, trn_dataset, tst_dataset, bfloat16=args.bfloat16)
     print("Testers initialized")
 
     trainer = init_training(batch_operator=batch_operator,
@@ -240,7 +241,8 @@ def main():
                             learning_rate=args.learning_rate,
                             warmup_iterations=args.warmup_iterations,
                             checkpoints_directory=args.checkpoints,
-                            visualizations_directory=args.visualizations)
+                            visualizations_directory=args.visualizations,
+                            bfloat16=args.bfloat16)
     print("Trainer initialized")
 
     trainer.train(start_iteration=args.start_iteration, end_iteration=args.end_iteration, view_step=args.view_step)

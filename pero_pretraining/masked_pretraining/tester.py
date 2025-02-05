@@ -4,13 +4,14 @@ from collections import defaultdict
 
 
 class Tester:
-    def __init__(self, batch_operator, model, dataloader, max_lines=None, measured_errors=(1, 3, 10)):
+    def __init__(self, batch_operator, model, dataloader, max_lines=None, measured_errors=(1, 3, 10), bfloat16=False):
         self.batch_operator = batch_operator
 
         self.model = model
         self.dataloader = dataloader
         self.max_lines = max_lines
         self.measured_errors = measured_errors
+        self.bfloat16 = bfloat16
 
     def test(self):
         total_loss = 0
@@ -54,7 +55,11 @@ class Tester:
 
     def test_step(self, batch):
         images, labels, mask = self.batch_operator.prepare_batch(batch)
-        output = self.model.forward(images, labels, mask)
+        if self.bfloat16:
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                output = self.model.forward(images, labels, mask)
+        else:
+            output = self.model.forward(images, labels, mask)
 
         batch['mask'] = mask
 
