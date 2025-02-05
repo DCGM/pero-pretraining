@@ -1,3 +1,4 @@
+import time
 import torch
 import argparse
 
@@ -32,9 +33,21 @@ def compute_features(model, dataset, kmeans_model, output_path):
     output_file = open(output_path, 'w')
     kmeans_model = kmeans_model.reshape(1, kmeans_model.shape[0], kmeans_model.shape[1])
 
+    dataset_iterator = iter(dataset)
+
     counter = 0
     with torch.no_grad():
-        for batch in dataset:
+        # for batch in dataset:
+        while True:
+            try:
+                batch = next(dataset_iterator)
+            except StopIteration:
+                break
+            except:
+                import traceback
+                traceback.print_exc()
+                continue
+
             images = batch_operator.prepare_batch(batch)
             counter += images.shape[0]
 
@@ -78,6 +91,8 @@ def compute_features(model, dataset, kmeans_model, output_path):
 def main():
     args = parse_arguments()
 
+    start = time.time()
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = init_model(args.model_definition, args.checkpoint_path, device)
@@ -87,11 +102,14 @@ def main():
     kmeans_model = torch.from_numpy(kmeans_model).float().to(device)
     print("K-Means Model loaded")
 
-    dataset = init_dataset(args.lmdb_path, args.lines_path, args.batch_size, args.skip)
+    dataset = init_dataset(args.lmdb_path, args.lines_path, args.batch_size, args.skip, drop_last=False)
     print("Dataset loaded")
 
     labels = compute_features(model, dataset, kmeans_model, args.output)
     print(f"Labels computed ({len(labels)})")
+
+    end = time.time()
+    print(f"Time: {end - start:.2f}s")
 
     return 0
 
