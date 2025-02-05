@@ -22,7 +22,7 @@ class Dataset:
 
         self.skip = skip
         self._load_data()
-        self._txn = lmdb.open(self.lmdb_path, readonly=True).begin()
+        self._txn = lmdb.open(self.lmdb_path, readonly=True, lock=False, map_size=1000_000_000_000).begin()
 
     def name(self):
         return os.path.basename(self.lines_path)
