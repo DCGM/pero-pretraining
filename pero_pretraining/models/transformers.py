@@ -2,6 +2,7 @@ import math
 import torch
 import einops
 import numpy as np
+#import cv2
 
 from numpy import random as np_random
 from abc import ABC, abstractmethod
@@ -32,7 +33,7 @@ class TransformerEncoder(ABC, torch.nn.Module):
         mask_tile = np.random.rand(1, self.in_channels, self.patch_size[0], self.patch_size[1])
         mask_tile = torch.tensor(mask_tile, dtype=torch.float32)
 
-        self.mask_pattern = einops.repeat(mask_tile, 'n c h w -> n c h (w x)', x=1024).to("cuda")
+        self.mask_pattern = mask_tile.repeat(1, 1, 1, 512).to("cuda")
 
     def create_layers(self):
         encoder_layer = torch.nn.TransformerEncoderLayer(d_model=self.model_dim,
@@ -58,11 +59,13 @@ class TransformerEncoder(ABC, torch.nn.Module):
         mask = torch.tensor(mask).to(x.device)
         mask = mask.unsqueeze(1).unsqueeze(2).expand(-1, self.in_channels, self.height, -1)
         # stretch mask to shape (N, C, H, W)
-        mask = einops.repeat(mask, 'n c h w -> n c h (s w)', s=self.patch_size[1])
+        mask = mask.repeat_interleave(8, dim=3)
 
         mask_pattern = self.mask_pattern.expand(x.shape[0], -1, -1, -1)
 
         x[mask == 1] = mask_pattern[:, :, :, :x.shape[3]][mask == 1]
+        #img = x[0].detach().cpu().permute(1, 2, 0).numpy()
+        #cv2.imwrite('x.jpg', img*255)
 
         return x
 
