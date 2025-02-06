@@ -58,6 +58,8 @@ class Tester:
         if self.bfloat16:
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                 output = self.model.forward(images, labels, mask)
+            output['output'] = output['output'].float()
+
         else:
             output = self.model.forward(images, labels, mask)
 

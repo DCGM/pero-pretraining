@@ -128,7 +128,7 @@ def init_visualizers(batch_operator, model, trn_dataloader, tst_dataloader, bflo
     return trn_visualizer, tst_visualizer
 
 
-def init_testers(batch_operator, model, trn_dataloader, tst_dataloader, bfloat16):
+def init_testers(batch_operator, model, trn_dataloader, tst_dataloader, bfloat16=False):
     trn_tester = Tester(batch_operator, model, trn_dataloader, max_lines=1000, bfloat16=bfloat16)
     tst_tester = Tester(batch_operator, model, tst_dataloader, bfloat16=bfloat16)
 
@@ -136,7 +136,7 @@ def init_testers(batch_operator, model, trn_dataloader, tst_dataloader, bfloat16
 
 
 def init_training(batch_operator, model, dataset, trn_tester, tst_tester, trn_visualizer, tst_visualizer, learning_rate,
-                  warmup_iterations, checkpoints_directory, visualizations_directory, bfloat16, clearml_logger=None):
+                  warmup_iterations, checkpoints_directory, visualizations_directory, bfloat16=False, clearml_logger=None):
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = WarmupSchleduler(optimizer, learning_rate, warmup_iterations, 1)
 
