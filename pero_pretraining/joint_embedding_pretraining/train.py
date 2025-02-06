@@ -41,6 +41,10 @@ def parse_arguments():
     parser.add_argument("--view-step", help="Number of iterations between testing.", type=int)
     parser.add_argument("--checkpoints", help="Path to a directory where checkpoints are saved.", default=None)
     parser.add_argument("--visualizations", help="Path to a directory where visualizations are saved.", default=None)
+    parser.add_argument('--bfloat16', help="Use bfloat16.", action="store_true")
+
+    parser.add_argument('--project-name', type=str, help='ClearML project name', default=None, required=False)
+    parser.add_argument('--task-name', type=str, help='ClearML task name', default=None, required=False)
 
     args = parser.parse_args()
     return args
@@ -109,26 +113,26 @@ def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations, max_
     return trn_dataloader, tst_dataloader
 
 
-def init_visualizers(batch_operator, model, trn_dataloader, tst_dataloader):
-    trn_visualizer = Visualizer(batch_operator, model, trn_dataloader)
-    tst_visualizer = Visualizer(batch_operator, model, tst_dataloader)
+def init_visualizers(batch_operator, model, trn_dataloader, tst_dataloader, bfloat16=False):
+    trn_visualizer = Visualizer(batch_operator, model, trn_dataloader, bfloat16=bfloat16)
+    tst_visualizer = Visualizer(batch_operator, model, tst_dataloader, bfloat16=bfloat16)
 
     return trn_visualizer, tst_visualizer
 
 
-def init_testers(batch_operator, model, trn_dataloader, tst_dataloader):
-    trn_tester = Tester(batch_operator, model, trn_dataloader, max_lines=1000)
-    tst_tester = Tester(batch_operator, model, tst_dataloader)
+def init_testers(batch_operator, model, trn_dataloader, tst_dataloader, bfloat16=False):
+    trn_tester = Tester(batch_operator, model, trn_dataloader, max_lines=1000, bfloat16=bfloat16)
+    tst_tester = Tester(batch_operator, model, tst_dataloader, bfloat16=bfloat16)
 
     return trn_tester, tst_tester
 
 
 def init_training(batch_operator, model, dataset, trn_tester, tst_tester, trn_visualizer, tst_visualizer, learning_rate,
-                  warmup_iterations, checkpoints_directory, visualizations_directory):
+                  warmup_iterations, checkpoints_directory, visualizations_directory, bfloat16=False, clearml_logger=None):
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = WarmupSchleduler(optimizer, learning_rate, warmup_iterations, 1)
 
-    trainer = Trainer(batch_operator, model, dataset, optimizer, scheduler)
+    trainer = Trainer(batch_operator, model, dataset, optimizer, scheduler, bfloat16=bfloat16)
     trainer.on_view_step = partial(view_step_handler,
                                    trn_tester=trn_tester,
                                    tst_tester=tst_tester,
@@ -136,7 +140,8 @@ def init_training(batch_operator, model, dataset, trn_tester, tst_tester, trn_vi
                                    tst_visualizer=tst_visualizer,
                                    checkpoints_directory=checkpoints_directory,
                                    visualizations_directory=visualizations_directory,
-                                   scheduler=scheduler)
+                                   scheduler=scheduler,
+                                   clearml_logger=clearml_logger)
 
     return trainer
 
@@ -147,16 +152,22 @@ def init_directories(*directories):
             os.makedirs(directory)
 
 
-def report(iteration, dataset, result, scheduler):
+def report(iteration, dataset, result, scheduler, clearml_logger=None):
     print(f"TEST {dataset.name()} "
           f"iteration:{iteration} "
           f"loss:{result['loss']:.6f} "
           f"lr:{scheduler.current_lr:.6e}")
 
+    if clearml_logger is not None:
+        clearml_logger.report_scalar(title="loss",
+                                     series=dataset.name(),
+                                     value=result['loss'],
+                                     iteration=iteration)
 
-def test_model(iteration, tester, scheduler):
+
+def test_model(iteration, tester, scheduler, clearml_logger=None):
     result = tester.test()
-    report(iteration, tester.dataloader, result, scheduler)
+    report(iteration, tester.dataloader, result, scheduler, clearml_logger=clearml_logger)
 
 
 def save_model(model, path):
@@ -168,12 +179,13 @@ def visualize(visualizer, path):
     cv2.imwrite(path, image)
 
 
-def view_step_handler(iteration, model, elapsed_time, iteration_count, trn_tester, tst_tester, trn_visualizer, tst_visualizer, checkpoints_directory, visualizations_directory, scheduler):
+def view_step_handler(iteration, model, elapsed_time, iteration_count, trn_tester, tst_tester, trn_visualizer,
+                      tst_visualizer, checkpoints_directory, visualizations_directory, scheduler, clearml_logger=None):
     print(f"Iteration: {iteration}, time: {elapsed_time:.2f} s, speed: {iteration_count / elapsed_time:.2f} it/s.")
     save_model(model, get_checkpoint_path(checkpoints_directory, iteration))
 
-    test_model(iteration, trn_tester, scheduler)
-    test_model(iteration, tst_tester, scheduler)
+    test_model(iteration, trn_tester, scheduler, clearml_logger=clearml_logger)
+    test_model(iteration, tst_tester, scheduler, clearml_logger=clearml_logger)
 
     visualize(trn_visualizer, get_visualization_path(visualizations_directory, iteration, "trn"))
     visualize(tst_visualizer, get_visualization_path(visualizations_directory, iteration, "tst"))
@@ -181,6 +193,13 @@ def view_step_handler(iteration, model, elapsed_time, iteration_count, trn_teste
 
 def main():
     args = parse_arguments()
+
+    clearml_task = None
+    clearml_logger = None
+    if args.project_name is not None and args.task_name is not None:
+        from clearml import Task
+        clearml_task = Task.init(project_name=args.project_name, task_name=args.task_name, task_type=Task.TaskTypes.training)
+        clearml_logger = clearml_task.get_logger()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
@@ -210,10 +229,10 @@ def main():
                                              max_line_width=args.max_line_width)
     print("Datasets initialized")
 
-    trn_visualizer, tst_visualizer = init_visualizers(batch_operator, model, trn_dataset, tst_dataset)
+    trn_visualizer, tst_visualizer = init_visualizers(batch_operator, model, trn_dataset, tst_dataset, bfloat16=args.bfloat16)
     print("Visualizers initialized")
 
-    trn_tester, tst_tester = init_testers(batch_operator, model, trn_dataset, tst_dataset)
+    trn_tester, tst_tester = init_testers(batch_operator, model, trn_dataset, tst_dataset, bfloat16=args.bfloat16)
     print("Testers initialized")
 
     trainer = init_training(batch_operator=batch_operator,
@@ -226,11 +245,16 @@ def main():
                             learning_rate=args.learning_rate,
                             warmup_iterations=args.warmup_iterations,
                             checkpoints_directory=args.checkpoints,
-                            visualizations_directory=args.visualizations)
+                            visualizations_directory=args.visualizations,
+                            bfloat16=args.bfloat16,
+                            clearml_logger=clearml_logger)
     print("Trainer initialized")
 
     trainer.train(start_iteration=args.start_iteration, end_iteration=args.end_iteration, view_step=args.view_step)
     print("Training finished")
+
+    if clearml_task is not None:
+        clearml_task.close()
 
     return 0
 

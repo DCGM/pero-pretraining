@@ -6,20 +6,18 @@ from pero_pretraining.joint_embedding_pretraining.batch_operator import BatchOpe
 
 
 class JointEmbeddingVisualizer:
-    def __init__(self, batch_operator, model, dataloader):
+    def __init__(self, batch_operator, model, dataloader, bfloat16=False):
         self.batch_operator = batch_operator
 
         self.model = model
         self.dataloader = dataloader
 
         self._visualizer = Visualizer()
+        self.bfloat16 = bfloat16
 
     def visualize(self):
         batch = next(iter(self.dataloader))
         predictions = self._inference_step(batch)
-
-        # print("JEV:visualize")
-        # import IPython; IPython.embed()
 
         image = self._visualizer.visualize(images=batch['images'],
                                            images2=batch['images2'],
@@ -43,7 +41,15 @@ class JointEmbeddingVisualizer:
     def _inference_step(self, batch):
         with torch.no_grad():
             images1, images2, image_masks1, image_masks2, shift_masks1, shift_masks2 = self.batch_operator.prepare_batch(batch)
-            output = self.model.forward(images1, images2, image_masks1, image_masks2, shift_masks1, shift_masks2)
+
+            if self.bfloat16:
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    output = self.model.forward(images1, images2, image_masks1, image_masks2, shift_masks1, shift_masks2)
+                output['output1'] = output['output1'].float()
+                output['output2'] = output['output2'].float()
+
+            else:
+                output = self.model.forward(images1, images2, image_masks1, image_masks2, shift_masks1, shift_masks2)
 
             batch['images'] = images1.permute(0, 2, 3, 1).cpu().numpy()
             batch['images2'] = images2.permute(0, 2, 3, 1).cpu().numpy()

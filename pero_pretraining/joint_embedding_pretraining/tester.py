@@ -46,6 +46,15 @@ class Tester:
 
     def test_step(self, batch):
         images1, images2, image_masks1, image_masks2, shift_masks1, shift_masks2  = self.batch_operator.prepare_batch(batch)
-        output = self.model.forward(images1, images2, image_masks1, image_masks2, shift_masks1, shift_masks2)
+
+        if self.bfloat16:
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                output = self.model.forward(images1, images2, image_masks1, image_masks2, shift_masks1, shift_masks2)
+            output['output1'] = output['output1'].float()
+            output['output2'] = output['output2'].float()
+
+        else:
+            output = self.model.forward(images1, images2, image_masks1, image_masks2, shift_masks1, shift_masks2)
+
 
         return output
