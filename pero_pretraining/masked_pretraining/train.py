@@ -4,6 +4,7 @@ import json
 import torch
 import argparse
 
+from clearml import Task
 from functools import partial
 from safe_gpu.safe_gpu import GPUOwner
 
@@ -216,7 +217,6 @@ def main():
     clearml_task = None
     clearml_logger = None
     if args.project_name is not None and args.task_name is not None:
-        from clearml import Task
         clearml_task = Task.init(project_name=args.project_name, task_name=args.task_name, task_type=Task.TaskTypes.training)
         clearml_logger = clearml_task.get_logger()
 

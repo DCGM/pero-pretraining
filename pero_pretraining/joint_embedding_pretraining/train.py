@@ -4,6 +4,7 @@ import json
 import torch
 import argparse
 
+from clearml import Task
 from functools import partial
 from safe_gpu.safe_gpu import GPUOwner
 
