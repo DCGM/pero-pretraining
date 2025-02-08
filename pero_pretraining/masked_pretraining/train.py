@@ -48,6 +48,7 @@ def parse_arguments():
 
     parser.add_argument('--project-name', type=str, help='ClearML project name', default=None, required=False)
     parser.add_argument('--task-name', type=str, help='ClearML task name', default=None, required=False)
+    parser.add_argument('--resource-monitoring-start', help='Start resource monitoring after N seconds. If not set, defaults are used.', default=None, type=float, required=False)
 
     args = parser.parse_args()
     print(args)
@@ -218,7 +219,19 @@ def main():
     clearml_task = None
     clearml_logger = None
     if args.project_name is not None and args.task_name is not None:
-        clearml_task = Task.init(project_name=args.project_name, task_name=args.task_name, task_type=Task.TaskTypes.training)
+        resource_monitoring = True
+        if args.resource_monitoring_start is not None:
+            resource_monitoring_sec = args.resource_monitoring_start
+            resource_monitoring = {
+                'report_start_sec': resource_monitoring_sec,
+                'first_report_sec': resource_monitoring_sec,
+                'seconds_from_start': resource_monitoring_sec,
+                'wait_for_first_iteration_to_start_sec': resource_monitoring_sec,
+                'max_wait_for_first_iteration_to_start_sec': resource_monitoring_sec
+            }
+
+        clearml_task = Task.init(project_name=args.project_name, task_name=args.task_name, task_type=Task.TaskTypes.training,
+                                 auto_resource_monitoring=resource_monitoring)
         clearml_logger = clearml_task.get_logger()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
