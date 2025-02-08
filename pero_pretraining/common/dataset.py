@@ -5,6 +5,9 @@ import lmdb
 import logging
 import numpy as np
 
+from datetime import datetime
+
+
 class Dataset:
     def __init__(self, lmdb_path, lines_path, augmentations=None, pair_images=False, max_width=2048, label_step=8, skip=0):
         self.lmdb_path = lmdb_path
@@ -103,7 +106,8 @@ class Dataset:
 
 
 class DatasetLMDB:
-    def __init__(self, lmdb_path, lines_path, augmentations=None, pair_images=False, max_width=2048, label_step=8, fill_width=False, exact_width=False):
+    def __init__(self, lmdb_path, lines_path, augmentations=None, pair_images=False, max_width=2048, label_step=8,
+                 fill_width=False, exact_width=False, verbose=False):
         self.lmdb_path = lmdb_path
         self.lines_path = lines_path
         self.augmentations = augmentations
@@ -113,31 +117,51 @@ class DatasetLMDB:
         self.fill_width = fill_width
         self.exact_width = exact_width
 
+        self.verbose = verbose
+
         self._logger = logging.getLogger(__name__)
 
         self._has_labels = False
 
-        self._txn_labels = lmdb.open(self.lines_path, readonly=True).begin()
-        self._txn = lmdb.open(self.lmdb_path, readonly=True).begin()
-
-        self.image_count = self._txn_labels.stat()['entries']
+        self.image_count = self.get_image_count()
 
         print("DATASET", lines_path, self.image_count)
 
         self._eol_patch = None
+
+        self._num_reads = 0
+
+    def get_image_count(self):
+        with lmdb.open(self.lines_path, readonly=True, lock=False) as env:
+            with env.begin() as txn:
+                image_count = txn.stat()['entries']
+        return image_count
+
+    def get_image(self, image_id):
+        return self.get_data(self.lmdb_path, image_id)
+    
+    def get_image_info(self, key):
+        return self.get_data(self.lines_path, key)
+
+    @staticmethod
+    def get_data(path, key):
+        with lmdb.open(path, readonly=True, lock=False) as env:
+            with env.begin() as txn:
+                data = txn.get(key.encode())
+        return data
 
     def name(self):
         return os.path.basename(self.lines_path)
 
     def _load_image_and_labels(self, image_id):
         lmdb_id = f"{image_id:10d}"
-        image_info = self._txn_labels.get(lmdb_id.encode())
+        image_info = self.get_image_info(lmdb_id)
         image_info = json.loads(image_info)
         labels = image_info["labels"]
 
         if "image" in image_info:
             image_id = image_info["image"]
-            data = self._txn.get(image_id.encode())
+            data = self.get_image(image_id)
             if data is None:
                 self._logger.warning(f"Unable to load image '{image_id}' specified in '{self.lines_path}' from LMDB '{self.lmdb_path}'.")
                 return None
@@ -150,7 +174,7 @@ class DatasetLMDB:
             images = image_info["images"]
             img = []
             for image_id in images:
-                data = self._txn.get(image_id.encode())
+                data = self.get_image(image_id)
                 if data is None:
                     self._logger.warning(f"Unable to load image '{image_id}' specified in '{self.lines_path}' from LMDB '{self.lmdb_path}'.")
                     return None
@@ -223,10 +247,15 @@ class DatasetLMDB:
         if self.augmentations is not None:
             image = self.augmentations(image=image)
 
+        # TODO: move this before the original image augmentation, otherwise the second image will be augmented twice
         if self.pair_images:
             image2 = np.copy(image)
             if self.augmentations is not None:
                 image2 = self.augmentations(image=image2)
+
+        self._num_reads += 1
+        if self.verbose and self._num_reads % 1000 == 0:
+            print(f"[{str(datetime.utcnow())}|{os.getpid()}|{self}] Read {self._num_reads} samples")
 
         item = {
             "image": image,
