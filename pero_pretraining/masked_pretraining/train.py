@@ -43,6 +43,7 @@ def parse_arguments():
     parser.add_argument("--view-step", help="Number of iterations between testing.", type=int, default=500)
     parser.add_argument("--checkpoints", help="Path to a directory where checkpoints are saved.", default=None)
     parser.add_argument("--visualizations", help="Path to a directory where visualizations are saved.", default=None)
+    parser.add_argument("--show-masked-images", help="If set, visualized images will be masked.", action="store_true")
     parser.add_argument('--bfloat16', help="Use bfloat16.", action="store_true")
 
     parser.add_argument('--project-name', type=str, help='ClearML project name', default=None, required=False)
@@ -122,9 +123,9 @@ def init_datasets(trn_path, tst_path, lmdb_path, batch_size, augmentations, max_
     return trn_dataloader, tst_dataloader
 
 
-def init_visualizers(batch_operator, model, trn_dataloader, tst_dataloader, bfloat16=False):
-    trn_visualizer = Visualizer(batch_operator, model, trn_dataloader, bfloat16=bfloat16)
-    tst_visualizer = Visualizer(batch_operator, model, tst_dataloader, bfloat16=bfloat16)
+def init_visualizers(batch_operator, model, trn_dataloader, tst_dataloader, show_masked_images=False, bfloat16=False):
+    trn_visualizer = Visualizer(batch_operator, model, trn_dataloader, show_masked_images=show_masked_images, bfloat16=bfloat16)
+    tst_visualizer = Visualizer(batch_operator, model, tst_dataloader, show_masked_images=show_masked_images, bfloat16=bfloat16)
 
     return trn_visualizer, tst_visualizer
 
@@ -249,7 +250,12 @@ def main():
                                              max_line_width=args.max_line_width)
     print("Datasets initialized")
 
-    trn_visualizer, tst_visualizer = init_visualizers(batch_operator, model, trn_dataset, tst_dataset, bfloat16=args.bfloat16)
+    trn_visualizer, tst_visualizer = init_visualizers(batch_operator=batch_operator,
+                                                      model=model,
+                                                      trn_dataloader=trn_dataset,
+                                                      tst_dataloader=tst_dataset,
+                                                      show_masked_images=args.show_masked_images,
+                                                      bfloat16=args.bfloat16)
     print("Visualizers initialized")
 
     trn_tester, tst_tester = init_testers(batch_operator, model, trn_dataset, tst_dataset, bfloat16=args.bfloat16)

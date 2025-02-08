@@ -4,15 +4,16 @@ from pero_pretraining.common.visualizer import Visualizer
 
 
 class MaskedVisualizer:
-    def __init__(self, batch_operator, model, dataloader, bfloat16=False):
+    def __init__(self, batch_operator, model, dataloader, show_masked_images=True, bfloat16=False):
         self.batch_operator = batch_operator
 
         self.model = model
         self.dataloader = dataloader
+        self.show_masked_images = show_masked_images
+        self.bfloat16 = bfloat16
 
         self._num_labels = self.model.head.linear.out_features
         self._visualizer = Visualizer()
-        self.bfloat16 = bfloat16
 
     def visualize(self):
         batch = next(iter(self.dataloader))
@@ -30,7 +31,13 @@ class MaskedVisualizer:
 
         predictions = torch.argmax(output['output'], dim=-1).cpu().numpy()
 
-        output = self._visualizer.visualize(images=batch['images'],
+        images_to_show = batch['images']
+        if self.show_masked_images:
+            images_to_show = torch.from_numpy(batch['images']).cuda().permute(0, 3, 1, 2).float() / 255.
+            images_to_show = self.model.backbone.mask(images_to_show, mask)
+            images_to_show = images_to_show.permute(0, 2, 3, 1).cpu().numpy()
+
+        output = self._visualizer.visualize(images=images_to_show,
                                             image_masks=batch['image_masks'],
                                             labels=batch['labels'],
                                             predicted_labels=predictions,
