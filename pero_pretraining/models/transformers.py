@@ -2,9 +2,7 @@ import math
 import torch
 import einops
 import numpy as np
-#import cv2
 
-from numpy import random as np_random
 from abc import ABC, abstractmethod
 from pero_pretraining.models.helpers import create_vgg_encoder, create_pero_vgg_layers
 
