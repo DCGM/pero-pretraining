@@ -13,7 +13,7 @@ from pero_pretraining.common.helpers import get_checkpoint_path, get_visualizati
 from pero_pretraining.common.dataloader import create_dataloader, BatchCreator
 from pero_pretraining.common.lr_scheduler import WarmupSchleduler
 
-from pero_pretraining.masked_pretraining.model import init_backbone, init_head, MaskedTransformerEncoder
+from pero_pretraining.masked_pretraining.model import init_backbone, init_head, MaskedTransformerEncoder, MaskedCrossEntropyLoss
 from pero_pretraining.masked_pretraining.tester import Tester
 from pero_pretraining.masked_pretraining.trainer import Trainer
 from pero_pretraining.masked_pretraining.visualizer import MaskedVisualizer as Visualizer
@@ -36,6 +36,7 @@ def parse_arguments():
     parser.add_argument("--warmup-iterations", help="Number of warmup iterations.", type=int, default=10000, required=False)
     parser.add_argument("--fill-width", help="Fill the maximum width with text lines (as long as they fit).", action="store_true")
     parser.add_argument("--exact-width", help="Fill the maximum width with text lines exactly (only effective with --fill-width).", action="store_true")
+    parser.add_argument("--unmasked-weight", help="Weight of cross entropy loss of unmasked patches. If None, the unmasked part of the loss is not calculated.", type=float, default=None)
 
     parser.add_argument("--backbone", help="Backbone definition.", type=json.loads, default="{}")
     parser.add_argument("--head", help="Head definition.", type=json.loads, default="{}")
@@ -55,11 +56,13 @@ def parse_arguments():
     return args
 
 
-def init_model(device, backbone_definition, head_definition, path=None):
+def init_model(device, backbone_definition, head_definition, path=None, unmasked_weight=None):
     backbone = init_backbone(backbone_definition)
     head = init_head(head_definition)
 
-    model = MaskedTransformerEncoder(backbone, head)
+    loss = MaskedCrossEntropyLoss(unmasked_weight=unmasked_weight)
+
+    model = MaskedTransformerEncoder(backbone, head, loss=loss)
     model.to(device)
 
     if path is not None:
@@ -244,7 +247,8 @@ def main():
     model = init_model(device=device,
                        backbone_definition=args.backbone,
                        head_definition=args.head,
-                       path=checkpoint_path)
+                       path=checkpoint_path,
+                       unmasked_weight=args.unmasked_weight)
     print(model)
 
     init_directories(args.checkpoints, args.visualizations)

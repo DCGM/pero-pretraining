@@ -70,14 +70,27 @@ class MaskedTransformerEncoder(torch.nn.Module):
 
 
 class MaskedCrossEntropyLoss(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, unmasked_weight=None):
         super(MaskedCrossEntropyLoss, self).__init__()
+
+        self.unmasked_weight = unmasked_weight
 
     def forward(self, output, labels, mask):
         masked_output = output[mask == 1]
         masked_labels = labels[mask == 1]
 
         loss = torch.nn.functional.cross_entropy(masked_output, masked_labels)
+
+        if self.unmasked_weight is not None:
+            unmasked_output = output[mask == 0]
+            unmasked_labels = labels[mask == 0]
+
+            image_mask = unmasked_labels >= 0
+            unmasked_output = unmasked_output[image_mask]
+            unmasked_labels = unmasked_labels[image_mask]
+
+            unmasked_loss = torch.nn.functional.cross_entropy(unmasked_output, unmasked_labels)
+            loss = loss + self.unmasked_weight * unmasked_loss
         
         return loss
     
